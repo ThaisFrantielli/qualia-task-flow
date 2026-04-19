@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
+import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 import { supabase } from '@/integrations/supabase/client';
@@ -94,6 +95,69 @@ interface FaturamentoItemRow {
   DataAtualizacaoDados?:string;
 }
 
+interface ItensOrdemServicoRow {
+  [key: string]: unknown;
+  IdItemOrdemServico?: string|number;
+  iditemordemservico?: string|number;
+  IdVeiculo?: string|number;
+  idveiculo?: string|number;
+  IdContratoLocacao?: string|number;
+  idcontratolocacao?: string|number;
+  IdContratoComercial?: string|number;
+  idcontratocomercial?: string|number;
+  ContratoComercial?: string|number;
+  contratocomercial?: string|number;
+  IdOrdemServico?: string|number;
+  idordemservico?: string|number;
+  OrdemServico?: string|number;
+  ordemservico?: string|number;
+  OS?: string|number;
+  NumeroOS?: string|number;
+  numeroos?: string|number;
+  IdOcorrencia?: string|number;
+  idocorrencia?: string|number;
+  Ocorrencia?: string;
+  ocorrencia?: string;
+  NumeroOcorrencia?: string|number;
+  numeroocorrencia?: string|number;
+  Placa?: string;
+  placa?: string;
+  DataCriacaoOcorrencia?: string;
+  DataCriacao?: string;
+  CriadoEm?: string;
+  DataServico?: string;
+  DataAtualizacaoDados?: string;
+  DescricaoItem?: string;
+  descricaoitem?: string;
+  Item?: string;
+  item?: string;
+  Descricao?: string;
+  descricao?: string;
+  GrupoDespesa?: string;
+  grupodespesa?: string;
+  TipoDespesa?: string;
+  tipodespesa?: string;
+  CategoriaDespesa?: string;
+  NomeFornecedor?: string;
+  nomefornecedor?: string;
+  Fornecedor?: string;
+  fornecedor?: string;
+  Quantidade?: number|string;
+  quantidade?: number|string;
+  Qtd?: number|string;
+  qtd?: number|string;
+  ValorUnitario?: number|string;
+  valorunitario?: number|string;
+  ValorTotal?: number|string;
+  valortotal?: number|string;
+  ValorItem?: number|string;
+  valoritem?: number|string;
+  ValorReembolsavel?: number|string;
+  valorreembolsavel?: number|string;
+  ValorReembolsavelFatItens?: number|string;
+  valorreembolsavelfatitens?: number|string;
+}
+
 interface PrecosLocacaoRow {
   IdContratoLocacao?:string|number;
   DataInicial?:string;
@@ -126,6 +190,7 @@ interface VehicleRow {
   isCortesia:boolean;
   franquiaBanco:number; custoKmManual:number | null;
   passagemTotal:number; passagemIdeal:number; diferencaPassagem:number; pctPassagem:number;
+  qtdOcorrenciasTotal:number; qtdOcorrenciasEfetivas:number; qtdOcorrenciasCanceladas:number; pctOcorrenciasCanceladas:number;
   custoManPrevisto:number; custoManRealizado:number; difManPrevReal:number; pctDifManPrevReal:number; custoManLiquido:number; difCustoManLiq:number; pctDifCustoManLiq:number;
   totalManutencao:number; ticketMedio:number; custoKmMan:number;
   totalReembMan:number;
@@ -143,6 +208,16 @@ interface VehicleRow {
   diferencaFaturamento:number;
   projecaoFaturamento:number;
   pctManFat:number; pctCustoLiqManFat:number; pctSinFat:number; pctCustoLiqSinFat:number; pctManSinFat:number;
+  qtdOsComItens:number;
+  qtdItensOs:number;
+  qtdTiposItensOs:number;
+  totalItensOsValor:number;
+  totalItensOsReemb:number;
+  custoLiqItensOs:number;
+  ticketMedioOsComItens:number;
+  custoMedioItemOs:number;
+  pctRecuperacaoItensOs:number;
+  pctItensOsFat:number;
   years: Record<number, { pass:number; man:number; reembMan:number; sin:number; reembSin:number; fat:number; }>;
 }
 
@@ -171,6 +246,74 @@ interface FaturamentoDetailRow {
   mes: number;
   valor: number;
   descricao: string;
+}
+
+interface ItemOsDetailRow {
+  osId: string;
+  ocorrencia: string;
+  date: Date | null;
+  itemDescricao: string;
+  grupoDespesa: string;
+  fornecedor: string;
+  quantidade: number;
+  valorTotal: number;
+  valorReembolsavel: number;
+}
+
+type EstimativaManutencaoTipo = 'PREVENTIVA' | 'CORRETIVA';
+type ItemTrocaRegraKey = 'AMORTECEDOR' | 'DISCO_FREIO' | 'EMBREAGEM' | 'PASTILHA' | 'PNEU';
+
+interface ItemTrocaAlertRuleConfig {
+  id: string;
+  label: string;
+  intervaloKm: number;
+  termos: string[];
+  enabled: boolean;
+  source: 'default' | 'custom';
+}
+
+interface ItemOsEstimativaRow {
+  placa: string;
+  modelo: string;
+  grupo: string;
+  kmAtual: number;
+  ultimoEventoTipo: EstimativaManutencaoTipo | '—';
+  ultimoEventoData: Date | null;
+  diasSemEvento: number;
+  proximoTipo: EstimativaManutencaoTipo;
+  probabilidade: number;
+  proximaData: Date | null;
+  diasAteProximo: number;
+  intervaloDias: number;
+  custoEstimado: number;
+  custoP25: number;
+  custoP75: number;
+  eventosTipo: number;
+  eventosTotais: number;
+  metodoCusto: 'PLACA' | 'COORTE' | 'GLOBAL';
+  confianca: number;
+  alerta: string;
+}
+
+interface ItemOsStatusPlacaRow {
+  placa: string;
+  modelo: string;
+  kmAtual: number;
+  ultimaRevisao: string;
+  proximoEvento: string;
+  proximoItem: string;
+  proximoEventoData: Date | null;
+  diasAteProximo: number;
+  kmParaProxima: number;
+  itensMonitorados: number;
+  itensComTroca: number;
+  itensVencidos: number;
+  trocasPrecoces: number;
+  itensSemHistorico: number;
+  riscoNivel: 'ALTO' | 'MEDIO' | 'BAIXO';
+  riscoScore: number;
+  alertaPrincipal: string;
+  alertas: string[];
 }
 
 interface ContractExecutiveSummary {
@@ -251,11 +394,13 @@ interface CtoResumoListRow {
 
 const ANALISE_CONTRATO_DATA_STALE_TIME = 30 * 60 * 1000;
 const MANUAL_RULES_CACHE_TTL = 30 * 60 * 1000;
+const ALERT_RULES_STORAGE_KEY = 'analise_contrato_itens_alerta_por_grupo_modelo_v1';
+const ALERT_RULE_SCOPE_ALL = '__ALL__';
 let manualRulesCache: { data: ManualCostRule[]; timestamp: number } | null = null;
 
 type CtoListSortKey = 'cto' | 'cliente' | 'veiculos' | 'kmMedio' | 'faturamento' | 'custoLiquido' | 'pctRecuperacao' | 'impactoLiqFat' | 'status';
 
-type DetailMode = 'manutencao' | 'sinistro' | 'mansin' | 'faturamento';
+type DetailMode = 'manutencao' | 'sinistro' | 'mansin' | 'faturamento' | 'itensos';
 
 // ── Helpers ──────────────────────────────────────────────────────
 const parseNum = (v: unknown): number => {
@@ -314,8 +459,8 @@ const normalizeKeyPart = (v: string) => String(v || '').trim().toUpperCase();
 const normalizePlate = (v: unknown) => String(v || '').trim().toUpperCase();
 const canonicalPlate = (v: unknown) => normalizePlate(v).replace(/[^A-Z0-9]/g, '');
 const normalizeMaintenanceOsId = (v: unknown) => String(v ?? '').replace(/\s+/g, '').trim();
-const normalizeDisplayOsId = (v: unknown, fallback?: unknown) => {
-  const raw = normalizeMaintenanceOsId(v || fallback || '').toUpperCase();
+const normalizeDisplayOsId = (v: unknown) => {
+  const raw = normalizeMaintenanceOsId(v || '').toUpperCase();
   if (!raw) return '';
   let core = raw;
   if (core.startsWith('OS-')) return core;
@@ -331,9 +476,75 @@ const normalizeDisplayOccurrence = (v: unknown) => {
   if (match && match[1]) return `QUAL-${match[1].toUpperCase()}`;
   return normalized;
 };
+const getMaintenanceStatusText = (row: Record<string, unknown>) => String(
+  row.SituacaoOcorrencia
+  || row.StatusOcorrencia
+  || row.Situacao
+  || row.Status
+  || row.StatusOrdem
+  || row.SituacaoOrdemServico
+  || row.situacaoordemservico
+  || row.SituacaoOS
+  || ''
+).trim();
+const isCancelledStatus = (statusRaw: unknown) => String(statusRaw || '').toLowerCase().includes('cancel');
+const getMaintenanceOccurrenceKey = (row: Record<string, unknown>, fallback?: unknown) => {
+  const occurrenceId = normalizeMaintenanceOsId(row.IdOcorrencia || row.idocorrencia || '').toUpperCase();
+  if (occurrenceId) return `ID:${occurrenceId}`;
+
+  const occurrenceCode = normalizeDisplayOccurrence(
+    row.Ocorrencia || row.ocorrencia || row.NumeroOcorrencia || row.numeroocorrencia || ''
+  );
+  if (occurrenceCode) return `OCC:${occurrenceCode}`;
+
+  const fallbackKey = normalizeMaintenanceOsId(fallback || '').toUpperCase();
+  return fallbackKey ? `FB:${fallbackKey}` : '';
+};
+const getMaintenanceOccurrenceLookupKeys = (row: Record<string, unknown>, fallback?: unknown) => {
+  const keys = new Set<string>();
+
+  const idRaw = normalizeMaintenanceOsId(row.IdOcorrencia || row.idocorrencia || '').toUpperCase();
+  if (idRaw) {
+    keys.add(`ID:${idRaw}`);
+    const digitsOnly = idRaw.replace(/\D+/g, '');
+    if (digitsOnly) keys.add(`ID:${digitsOnly}`);
+  }
+
+  const occurrenceCode = normalizeDisplayOccurrence(
+    row.Ocorrencia || row.ocorrencia || row.NumeroOcorrencia || row.numeroocorrencia || ''
+  );
+  if (occurrenceCode) keys.add(`OCC:${occurrenceCode}`);
+
+  const fallbackKey = getMaintenanceOccurrenceKey(row, fallback);
+  if (fallbackKey) keys.add(fallbackKey);
+
+  return Array.from(keys);
+};
+const getPlateOccurrenceScopedKey = (plate: unknown, occurrenceKey: string) => {
+  const plateKey = canonicalPlate(plate || '');
+  if (!plateKey || !occurrenceKey) return '';
+  return `PLATE:${plateKey}::${occurrenceKey}`;
+};
+const getMaintenanceOccurrenceDisplay = (row: Record<string, unknown>) => normalizeDisplayOccurrence(
+  row.Ocorrencia || row.ocorrencia || row.NumeroOcorrencia || row.numeroocorrencia || row.IdOcorrencia || row.idocorrencia || ''
+);
+const getMaintenanceOrderDisplay = (row: Record<string, unknown>) => normalizeDisplayOsId(
+  row.IdOrdemServico || row.idordemservico || row.OrdemServico || row.ordemservico || row.OS || row.NumeroOS || row.numeroos || ''
+);
+const formatOrderDisplayList = (orders: Iterable<string>) => {
+  const unique = Array.from(new Set(Array.from(orders).map(v => String(v || '').trim()).filter(Boolean)));
+  return unique.join(', ');
+};
 const makeRuleKey = (cto: string, grupo: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}`;
 const makeBancoRuleKey = (cto: string, grupo: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}::${normalizeKeyPart(regra)}`;
 const makeBancoRuleKeyGeneric = (cto: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(regra)}`;
+const buildAlertRuleScopeKey = (grupoRaw: string, modeloRaw: string, applyAll = false) => {
+  if (applyAll) return ALERT_RULE_SCOPE_ALL;
+  const grupo = normalizeKeyPart(grupoRaw);
+  const modelo = normalizeKeyPart(modeloRaw);
+  if (!grupo || !modelo) return '';
+  return `${grupo}::${modelo}`;
+};
 const parseDateFlexible = (v: unknown): Date | null => {
   const raw = String(v || '').trim();
   if (!raw) return null;
@@ -402,6 +613,289 @@ const parseSinistroReembolso = (raw: any): number => {
     inferred += parseNum(v);
   }
   return inferred;
+};
+
+const getItemOsDate = (row: Record<string, unknown>): Date | null => {
+  return parseDateFlexible(
+    row.DataCriacaoOcorrencia
+    || row.DataCriacao
+    || row.CriadoEm
+    || row.DataServico
+    || row.DataAtualizacaoDados
+    || ''
+  );
+};
+
+const getItemOsQuantity = (row: Record<string, unknown>): number => {
+  const qty = parseNum(row.Quantidade || row.quantidade || row.Qtd || row.qtd || 0);
+  if (!isFinite(qty) || qty <= 0) return 1;
+  return qty;
+};
+
+const getItemOsCost = (row: Record<string, unknown>): number => {
+  const direct = parseNum(
+    row.ValorTotal
+    || row.valortotal
+    || row.ValorItem
+    || row.valoritem
+    || row.CustoTotalItem
+    || row.custototalitem
+    || row.ValorServico
+    || row.valorservico
+    || 0
+  );
+  if (direct !== 0) return direct;
+
+  const qty = getItemOsQuantity(row);
+  const unit = parseNum(row.ValorUnitario || row.valorunitario || row.PrecoUnitario || row.precounitario || 0);
+  return qty * unit;
+};
+
+const getItemOsReembolso = (row: Record<string, unknown>): number => {
+  return parseNum(
+    row.ValorReembolsavelFatItens
+    || row.valorreembolsavelfatitens
+    || row.ValorReembolsavel
+    || row.valorreembolsavel
+    || row.ValorReembolsado
+    || row.valorreembolsado
+    || row.ValorRecuperado
+    || row.valorrecuperado
+    || 0
+  );
+};
+
+const getItemOsEventKm = (row: Record<string, unknown>): number => {
+  const km = parseNum(
+    row.KmConfirmado
+    || row.kmconfirmado
+    || row.KmAtual
+    || row.kmatual
+    || row.KmInformado
+    || row.kminformado
+    || row.KM
+    || row.km
+    || row.OdometroConfirmado
+    || row.odometroconfirmado
+    || row.OdometroAtual
+    || row.odometroatual
+    || row.Odometro
+    || row.odometro
+    || row.Hodometro
+    || row.hodometro
+    || row.Quilometragem
+    || row.quilometragem
+    || row.KMEvento
+    || row.kmevento
+    || row.KM_OS
+    || row.km_os
+    || 0
+  );
+
+  return Number.isFinite(km) && km > 0 ? km : Number.NaN;
+};
+
+const getItemOsDescription = (row: Record<string, unknown>) => String(
+  row.DescricaoItem
+  || row.descricaoitem
+  || row.Item
+  || row.item
+  || row.Descricao
+  || row.descricao
+  || row.NomePeca
+  || row.nomepeca
+  || 'Item sem descrição'
+).trim();
+
+const getItemOsFornecedor = (row: Record<string, unknown>) => String(
+  row.NomeFornecedor
+  || row.nomefornecedor
+  || row.Fornecedor
+  || row.fornecedor
+  || row.NomeOficina
+  || row.nomeoficina
+  || row.Parceiro
+  || row.parceiro
+  || 'Não informado'
+).trim();
+
+const getItemOsGrupoDespesa = (row: Record<string, unknown>) => String(
+  row.GrupoDespesa
+  || row.grupodespesa
+  || row.TipoDespesa
+  || row.tipodespesa
+  || row.CategoriaDespesa
+  || row.categoriadespesa
+  || row.NaturezaDespesa
+  || row.naturezadespesa
+  || row.TipoItem
+  || row.tipoitem
+  || 'Sem grupo'
+).trim();
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const diffDays = (later: Date, earlier: Date) => {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.round((later.getTime() - earlier.getTime()) / msPerDay);
+};
+
+const addDays = (base: Date, days: number) => {
+  const copy = new Date(base);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+};
+
+const average = (values: number[]) => {
+  if (!values.length) return 0;
+  return values.reduce((acc, value) => acc + value, 0) / values.length;
+};
+
+const stdDev = (values: number[]) => {
+  if (values.length < 2) return 0;
+  const mean = average(values);
+  const variance = values.reduce((acc, value) => acc + ((value - mean) ** 2), 0) / values.length;
+  return Math.sqrt(variance);
+};
+
+const quantile = (values: number[], q: number) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const pos = (sorted.length - 1) * clamp(q, 0, 1);
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const next = sorted[base + 1];
+  if (next == null) return sorted[base];
+  return sorted[base] + rest * (next - sorted[base]);
+};
+
+const getMaintenanceEventDate = (row: Record<string, unknown>): Date | null => parseDateFlexible(
+  row.OrdemServicoCriadaEm
+  || row.DataCriacao
+  || row.DataEntrada
+  || row.DataCriacaoOS
+  || row.DataServico
+  || row.DataAtualizacaoDados
+  || ''
+);
+
+const classifyMaintenanceEstimateType = (row: Record<string, unknown>): EstimativaManutencaoTipo | null => {
+  const fullText = [
+    row.TipoManutencao,
+    row.Tipo,
+    row.TipoOcorrencia,
+    row.Motivo,
+    row.MotivoOcorrencia,
+    row.Observacao,
+    row.Descricao,
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+
+  if (/(prevent|revis|programad|inspec|troca\s+de\s+oleo)/.test(fullText)) return 'PREVENTIVA';
+  if (/(corret|pane|quebra|avaria|emerg|defeit|reparo)/.test(fullText)) return 'CORRETIVA';
+  return null;
+};
+
+const normalizeAlertRuleText = (value: string) => String(value || '')
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9\s]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const sanitizeAlertRuleTerms = (terms: string[]) => {
+  const normalized = terms
+    .map(term => normalizeAlertRuleText(term))
+    .filter(Boolean)
+    .filter(term => term.length >= 2);
+  return Array.from(new Set(normalized));
+};
+
+const buildTermsFromLabel = (label: string) => {
+  const normalized = normalizeAlertRuleText(label);
+  if (!normalized) return [];
+  const tokenTerms = normalized
+    .split(' ')
+    .map(term => term.trim())
+    .filter(term => term.length >= 3);
+  return sanitizeAlertRuleTerms([normalized, ...tokenTerms]);
+};
+
+const buildCustomAlertRuleId = (label: string) => {
+  const base = normalizeAlertRuleText(label).replace(/\s+/g, '_').slice(0, 32) || 'item_alerta';
+  return `${base}_${Date.now().toString(36)}`;
+};
+
+const ITEM_TROCA_REGRAS_PADRAO: Array<{ key: ItemTrocaRegraKey; label: string; intervaloKm: number; termos: string[] }> = [
+  { key: 'AMORTECEDOR', label: 'Amortecedor', intervaloKm: 60000, termos: ['amortecedor', 'amortecedores', 'coxim amortecedor', 'kit amortecedor'] },
+  { key: 'DISCO_FREIO', label: 'Disco de freio', intervaloKm: 40000, termos: ['disco de freio', 'disco freio'] },
+  { key: 'EMBREAGEM', label: 'Embreagem', intervaloKm: 60000, termos: ['embreagem', 'kit embreagem', 'plato embreagem', 'atuador embreagem'] },
+  { key: 'PASTILHA', label: 'Pastilha de freio', intervaloKm: 20000, termos: ['pastilha freio', 'pastilha de freio', 'jogo pastilha'] },
+  { key: 'PNEU', label: 'Pneu', intervaloKm: 40000, termos: ['pneu', 'pneus'] },
+];
+
+const buildDefaultItemAlertRules = (): ItemTrocaAlertRuleConfig[] => {
+  return ITEM_TROCA_REGRAS_PADRAO.map((rule) => ({
+    id: rule.key,
+    label: rule.label,
+    intervaloKm: rule.intervaloKm,
+    termos: sanitizeAlertRuleTerms(rule.termos.length ? rule.termos : [rule.label]),
+    enabled: true,
+    source: 'default' as const,
+  }));
+};
+
+const getSanitizedAlertRule = (raw: unknown): ItemTrocaAlertRuleConfig | null => {
+  const row = raw as Record<string, unknown>;
+  const label = String(row?.label || '').trim();
+  const intervaloKm = Math.max(0, Math.round(parseNum(row?.intervaloKm)));
+  if (!label || !intervaloKm) return null;
+
+  const termosRaw = Array.isArray(row?.termos)
+    ? row.termos.map(term => String(term || ''))
+    : [];
+  const termos = sanitizeAlertRuleTerms(termosRaw.length ? termosRaw : buildTermsFromLabel(label));
+
+  return {
+    id: String(row?.id || '').trim() || buildCustomAlertRuleId(label),
+    label,
+    intervaloKm,
+    termos,
+    enabled: row?.enabled !== false,
+    source: row?.source === 'default' ? 'default' : 'custom',
+  };
+};
+
+const parseAlertRulesByScopeStorage = (raw: string | null): Record<string, ItemTrocaAlertRuleConfig[]> => {
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object') return {};
+
+    const output: Record<string, ItemTrocaAlertRuleConfig[]> = {};
+    for (const [scopeKeyRaw, value] of Object.entries(parsed)) {
+      const scopeKey = String(scopeKeyRaw || '').trim();
+      if (!scopeKey) continue;
+      if (!Array.isArray(value)) continue;
+
+      const rules = value
+        .map(getSanitizedAlertRule)
+        .filter((rule): rule is ItemTrocaAlertRuleConfig => !!rule);
+
+      output[scopeKey] = rules;
+    }
+
+    return output;
+  } catch {
+    return {};
+  }
+};
+
+const doesDescricaoMatchAlertRule = (descricaoNormalizada: string, rule: ItemTrocaAlertRuleConfig) => {
+  const terms = sanitizeAlertRuleTerms(rule.termos.length ? rule.termos : buildTermsFromLabel(rule.label));
+  if (!terms.length) return false;
+  return terms.some(term => descricaoNormalizada.includes(term));
 };
 
 const normalizeSitCTO = (c: ContratoRow, cAny: any) => {
@@ -638,7 +1132,7 @@ const getIdCols = (kmRedThreshold: number): ColDef[] => [
 function MaintDetailModal(props: {
   open: boolean;
   placa: string;
-  rows: MaintDetailRow[] | FaturamentoDetailRow[];
+  rows: MaintDetailRow[] | FaturamentoDetailRow[] | ItemOsDetailRow[];
   resumoPorTipo?: MaintDetailResumoRow[];
   mode: DetailMode;
   onClose: () => void;
@@ -647,6 +1141,7 @@ function MaintDetailModal(props: {
   if (!open) return null;
 
   const isFaturamento = mode === 'faturamento';
+  const isItensOs = mode === 'itensos';
   const isManutencao = mode === 'manutencao';
   
   // Adapta cálculos para os dois tipos de dados
@@ -654,18 +1149,65 @@ function MaintDetailModal(props: {
   if (isFaturamento) {
     total = (rows as FaturamentoDetailRow[]).reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
     totalReemb = 0; // Faturamento não tem reembolso
+  } else if (isItensOs) {
+    total = (rows as ItemOsDetailRow[]).reduce((acc, r) => acc + (Number(r.valorTotal) || 0), 0);
+    totalReemb = (rows as ItemOsDetailRow[]).reduce((acc, r) => acc + (Number(r.valorReembolsavel) || 0), 0);
   } else {
     total = (rows as MaintDetailRow[]).reduce((acc, r) => acc + (Number(r.valorTotal) || 0), 0);
     totalReemb = (rows as MaintDetailRow[]).reduce((acc, r) => acc + (Number(r.valorReembolsavel) || 0), 0);
   }
 
+  const resumoItens = isItensOs
+    ? (() => {
+        const itemRows = rows as ItemOsDetailRow[];
+        const totalItens = itemRows.reduce((acc, r) => acc + (Number(r.quantidade) || 0), 0);
+        const totalOs = new Set(itemRows.map(r => String(r.osId || '').trim()).filter(Boolean)).size;
+        return { totalItens, totalOs };
+      })()
+    : { totalItens: 0, totalOs: 0 };
+
+  const resumoItensPorGrupo = isItensOs
+    ? (() => {
+        const groups = new Map<string, { grupo: string; valor: number; reemb: number; qtd: number; os: Set<string> }>();
+        for (const row of rows as ItemOsDetailRow[]) {
+          const grupo = String(row.grupoDespesa || '').trim() || 'Sem grupo';
+          const key = grupo.toUpperCase();
+          let rec = groups.get(key);
+          if (!rec) {
+            rec = { grupo, valor: 0, reemb: 0, qtd: 0, os: new Set<string>() };
+            groups.set(key, rec);
+          }
+          rec.valor += Number(row.valorTotal) || 0;
+          rec.reemb += Number(row.valorReembolsavel) || 0;
+          rec.qtd += Number(row.quantidade) || 0;
+          if (row.osId) rec.os.add(row.osId);
+        }
+
+        return Array.from(groups.values())
+          .map(item => ({
+            ...item,
+            osQtd: item.os.size,
+            pctReembolso: item.valor > 0 ? item.reemb / item.valor : 0,
+          }))
+          .sort((a, b) => b.valor - a.valor || b.qtd - a.qtd || a.grupo.localeCompare(b.grupo));
+      })()
+    : [];
+
   const modeMeta = isFaturamento
     ? { title: 'Histórico de Faturamento', subtitle: 'Detalhamento de faturamento por ano e mês', countLabel: 'Registros' }
+    : isItensOs
+      ? { title: 'Extrato de Itens de OS', subtitle: 'Detalhamento de itens por ordem de serviço e ocorrência', countLabel: 'Itens' }
     : mode === 'sinistro'
       ? { title: 'Extrato de Sinistros', subtitle: 'Detalhamento de eventos de sinistro por placa', countLabel: 'Sinistros' }
       : mode === 'mansin'
         ? { title: 'Extrato de Manutenção + Sinistro', subtitle: 'Detalhamento consolidado por placa', countLabel: 'Eventos' }
-        : { title: 'Extrato de Manutenções', subtitle: 'Detalhamento de OS por placa', countLabel: 'OS' };
+        : { title: 'Extrato de Manutenções', subtitle: 'Detalhamento de ocorrências e ordens de serviço por placa', countLabel: 'Ocorrências' };
+
+  const totalCanceladas = isManutencao
+    ? resumoPorTipo.reduce((acc, item) => acc + (Number(item.canceladas) || 0), 0)
+    : 0;
+  const ocorrenciasEfetivas = isManutencao ? Math.max(0, rows.length - totalCanceladas) : 0;
+  const pctCancelamento = isManutencao && rows.length > 0 ? totalCanceladas / rows.length : 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
@@ -683,6 +1225,10 @@ function MaintDetailModal(props: {
         <div className="px-5 py-3 border-b border-slate-200 bg-white flex flex-wrap items-center gap-4 text-sm">
           <div className="text-slate-600">Placa: <span className="font-semibold text-slate-900">{placa || '—'}</span></div>
           <div className="text-slate-600">{modeMeta.countLabel}: <span className="font-semibold text-slate-900">{rows.length.toLocaleString('pt-BR')}</span></div>
+          {isItensOs && <div className="text-slate-600">OS com itens: <span className="font-semibold text-indigo-700">{resumoItens.totalOs.toLocaleString('pt-BR')}</span></div>}
+          {isItensOs && <div className="text-slate-600">Quantidade total: <span className="font-semibold text-slate-900">{fmtNum(resumoItens.totalItens)}</span></div>}
+          {isManutencao && <div className="text-slate-600">Ocorrências Efetivas: <span className="font-semibold text-emerald-700">{ocorrenciasEfetivas.toLocaleString('pt-BR')}</span></div>}
+          {isManutencao && <div className="text-slate-600">% Cancelamento: <span className={`font-semibold ${pctCancelamento > 0.35 ? 'text-rose-700' : 'text-amber-700'}`}>{fmtPct(pctCancelamento)}</span> <span className="text-slate-500">({totalCanceladas.toLocaleString('pt-BR')} canceladas)</span></div>}
           <div className="text-slate-600">Total Acumulado: <span className="font-semibold text-slate-900">{fmtBRLZero(total)}</span></div>
           {!isFaturamento && <div className="text-slate-600">Total Reembolsável: <span className="font-semibold text-slate-900">{fmtBRLZero(totalReemb)}</span> <span className="text-slate-500">({fmtPct(total > 0 ? totalReemb / total : 0)})</span></div>}
         </div>
@@ -692,7 +1238,7 @@ function MaintDetailModal(props: {
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-700">Resumo por tipo</h4>
-                <p className="text-[11px] text-slate-500">Inclui OS canceladas, valor total, reembolsável e recuperação por tipo.</p>
+                <p className="text-[11px] text-slate-500">Inclui ocorrências canceladas, valor total, reembolsável e recuperação por tipo.</p>
               </div>
               <div className="text-xs text-slate-500">{resumoPorTipo.length.toLocaleString('pt-BR')} tipo(s)</div>
             </div>
@@ -701,7 +1247,7 @@ function MaintDetailModal(props: {
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
                     <th className="text-left px-3 py-2 border-b border-slate-200">Tipo</th>
-                    <th className="text-right px-3 py-2 border-b border-slate-200">OS</th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200">Ocorrências</th>
                     <th className="text-right px-3 py-2 border-b border-slate-200">Canceladas</th>
                     <th className="text-right px-3 py-2 border-b border-slate-200">Valor Total</th>
                     <th className="text-right px-3 py-2 border-b border-slate-200">Valor Reembolsável</th>
@@ -744,28 +1290,105 @@ function MaintDetailModal(props: {
           </div>
         )}
 
-        <div className="overflow-auto px-5 py-3" style={{ maxHeight: '64vh' }}>
+        {isItensOs && resumoItensPorGrupo.length > 0 && (
+          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-700">Visão em coluna por grupo de despesa</h4>
+                <p className="text-[11px] text-slate-500">Cada coluna representa um grupo de despesa com totais e percentual de reembolso.</p>
+              </div>
+              <div className="text-xs text-slate-500">{resumoItensPorGrupo.length.toLocaleString('pt-BR')} grupo(s)</div>
+            </div>
+            <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+              <table className="min-w-full text-[11px] border-collapse">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="text-left px-3 py-2 border-b border-slate-200">Métrica</th>
+                    {resumoItensPorGrupo.map(item => (
+                      <th key={`grp-col-${item.grupo}`} className="text-right px-3 py-2 border-b border-slate-200">{item.grupo}</th>
+                    ))}
+                    <th className="text-right px-3 py-2 border-b border-slate-200">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const totalValor = resumoItensPorGrupo.reduce((acc, item) => acc + item.valor, 0);
+                    const totalReemb = resumoItensPorGrupo.reduce((acc, item) => acc + item.reemb, 0);
+                    const totalQtd = resumoItensPorGrupo.reduce((acc, item) => acc + item.qtd, 0);
+                    const totalOs = resumoItensPorGrupo.reduce((acc, item) => acc + item.osQtd, 0);
+                    const totalPct = totalValor > 0 ? totalReemb / totalValor : 0;
+
+                    return (
+                      <>
+                        <tr className="border-b border-slate-100 odd:bg-white even:bg-slate-50/50">
+                          <td className="px-3 py-2 font-medium text-slate-700">Custo</td>
+                          {resumoItensPorGrupo.map(item => <td key={`grp-cost-${item.grupo}`} className="px-3 py-2 text-right text-slate-700">{fmtBRLZero(item.valor)}</td>)}
+                          <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmtBRLZero(totalValor)}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100 odd:bg-white even:bg-slate-50/50">
+                          <td className="px-3 py-2 font-medium text-slate-700">Reembolso</td>
+                          {resumoItensPorGrupo.map(item => <td key={`grp-reemb-${item.grupo}`} className="px-3 py-2 text-right text-emerald-700">{fmtBRLZero(item.reemb)}</td>)}
+                          <td className="px-3 py-2 text-right font-semibold text-emerald-700">{fmtBRLZero(totalReemb)}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100 odd:bg-white even:bg-slate-50/50">
+                          <td className="px-3 py-2 font-medium text-slate-700">% Reembolso</td>
+                          {resumoItensPorGrupo.map(item => <td key={`grp-pct-${item.grupo}`} className="px-3 py-2 text-right text-slate-700">{fmtPct(item.pctReembolso)}</td>)}
+                          <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmtPct(totalPct)}</td>
+                        </tr>
+                        <tr className="border-b border-slate-100 odd:bg-white even:bg-slate-50/50">
+                          <td className="px-3 py-2 font-medium text-slate-700">Qtd Itens</td>
+                          {resumoItensPorGrupo.map(item => <td key={`grp-qtd-${item.grupo}`} className="px-3 py-2 text-right text-slate-700">{fmtNum(item.qtd)}</td>)}
+                          <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmtNum(totalQtd)}</td>
+                        </tr>
+                        <tr className="odd:bg-white even:bg-slate-50/50">
+                          <td className="px-3 py-2 font-medium text-slate-700">OS com Itens</td>
+                          {resumoItensPorGrupo.map(item => <td key={`grp-os-${item.grupo}`} className="px-3 py-2 text-right text-slate-700">{fmtNum(item.osQtd)}</td>)}
+                          <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmtNum(totalOs)}</td>
+                        </tr>
+                      </>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-auto px-5 pt-0 pb-3" style={{ maxHeight: '64vh' }}>
           <table className="min-w-full text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-slate-100">
+            <thead className="bg-slate-100">
               <tr>
                 {isFaturamento ? (
                   <>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Ano</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Mês</th>
-                    <th className="text-right px-2 py-2 border-b border-slate-200">Valor</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Descrição</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Ano</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Mês</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">Valor</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Descrição</th>
+                  </>
+                ) : isItensOs ? (
+                  <>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Ordem de Serviço</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Ocorrência</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Data</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Item</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Grupo de Despesa</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Fornecedor</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">Qtd</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">Valor Total</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">Valor Reembolsável</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">% Recup.</th>
                   </>
                 ) : (
                   <>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Nº OS</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Ocorrência</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Data</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Tipo</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Motivo</th>
-                    <th className="text-left px-2 py-2 border-b border-slate-200">Situação</th>
-                    <th className="text-right px-2 py-2 border-b border-slate-200">Valor Total</th>
-                    <th className="text-right px-2 py-2 border-b border-slate-200">Valor Reembolsável</th>
-                    <th className="text-right px-2 py-2 border-b border-slate-200">% Recup.</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Ordem de Serviço</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Ocorrência</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Data</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Tipo</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Motivo</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-left px-2 py-2 border-b border-slate-200">Situação</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">Valor Total</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">Valor Reembolsável</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 text-right px-2 py-2 border-b border-slate-200">% Recup.</th>
                   </>
                 )}
               </tr>
@@ -773,8 +1396,12 @@ function MaintDetailModal(props: {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={isFaturamento ? 4 : 9} className="px-2 py-8 text-center text-slate-400">
-                    {isFaturamento ? 'Nenhum faturamento encontrado para esta placa.' : 'Nenhuma OS encontrada para o período/regra aplicada.'}
+                  <td colSpan={isFaturamento ? 4 : isItensOs ? 10 : 9} className="px-2 py-8 text-center text-slate-400">
+                    {isFaturamento
+                      ? 'Nenhum faturamento encontrado para esta placa.'
+                      : isItensOs
+                        ? 'Nenhum item de OS encontrado para o período/regra aplicado.'
+                        : 'Nenhuma ocorrência encontrada para o período/regra aplicado.'}
                   </td>
                 </tr>
               )}
@@ -787,17 +1414,36 @@ function MaintDetailModal(props: {
                     <td className="px-2 py-1.5 text-left text-slate-600">{r.descricao || '—'}</td>
                   </tr>
                 ))
+              ) : isItensOs ? (
+                (rows as ItemOsDetailRow[]).map((r, i) => {
+                  const pct = r.valorTotal > 0 ? r.valorReembolsavel / r.valorTotal : 0;
+                  return (
+                    <tr key={`it-${r.osId}-${r.itemDescricao}-${i}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40">
+                      <td className="px-2 py-1.5">{r.osId || '—'}</td>
+                      <td className="px-2 py-1.5">{r.ocorrencia || '—'}</td>
+                      <td className="px-2 py-1.5">{r.date ? r.date.toLocaleDateString('pt-BR') : '—'}</td>
+                      <td className="px-2 py-1.5 text-slate-700">{r.itemDescricao || '—'}</td>
+                      <td className="px-2 py-1.5">{r.grupoDespesa || '—'}</td>
+                      <td className="px-2 py-1.5">{r.fornecedor || '—'}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtNum(r.quantidade)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valorTotal)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valorReembolsavel)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtPct(pct)}</td>
+                    </tr>
+                  );
+                })
               ) : (
                 (rows as MaintDetailRow[]).map((r, i) => {
                   const pct = r.valorTotal > 0 ? r.valorReembolsavel / r.valorTotal : 0;
+                  const isCanceled = String(r.situacao || '').toLowerCase().includes('cancel');
                   return (
-                    <tr key={`${r.osId}-${i}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40">
+                    <tr key={`${r.osId}-${i}`} className={`border-b border-slate-100 ${isCanceled ? 'bg-rose-50/70' : 'odd:bg-white even:bg-slate-50/40'}`}>
                       <td className="px-2 py-1.5">{r.osId || '—'}</td>
                       <td className="px-2 py-1.5">{r.ocorrencia || '—'}</td>
                       <td className="px-2 py-1.5">{r.date ? r.date.toLocaleDateString('pt-BR') : '—'}</td>
                       <td className="px-2 py-1.5">{r.tipo || '—'}</td>
                       <td className="px-2 py-1.5">{r.motivo || '—'}</td>
-                      <td className="px-2 py-1.5">{r.situacao || '—'}</td>
+                      <td className={`px-2 py-1.5 ${isCanceled ? 'text-rose-700 font-medium' : ''}`}>{r.situacao || '—'}</td>
                       <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valorTotal)}</td>
                       <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valorReembolsavel)}</td>
                       <td className="px-2 py-1.5 text-right">{fmtPct(pct)}</td>
@@ -817,6 +1463,7 @@ const TABS = [
   { key:'passagem',   label:'Passagem',                icon:Route,       color:'bg-blue-600',   hdr:'bg-blue-700' },
   { key:'previsto',   label:'Custo Previsto × Real',   icon:Wrench,      color:'bg-amber-600',  hdr:'bg-amber-700' },
   { key:'manutencao', label:'Manutenção + Reembolso',  icon:Wrench,      color:'bg-orange-600', hdr:'bg-orange-700' },
+  { key:'itensos',    label:'Itens de OS',             icon:BarChart3,   color:'bg-emerald-600',hdr:'bg-emerald-700' },
   { key:'sinistro',   label:'Sinistro + Reembolso',    icon:ShieldAlert, color:'bg-red-600',    hdr:'bg-red-700' },
   { key:'mansin',     label:'Man + Sinistro',          icon:BarChart3,   color:'bg-purple-600', hdr:'bg-purple-700' },
   { key:'faturamento',label:'Faturamento',             icon:DollarSign,  color:'bg-teal-600',   hdr:'bg-teal-700' },
@@ -906,6 +1553,7 @@ export default function AnaliseContrato() {
     passagem: false,
     previsto: true,
     manutencao: false,
+    itensos: false,
     sinistro: false,
     mansin: false,
     faturamento: false,
@@ -934,6 +1582,18 @@ export default function AnaliseContrato() {
   const [ruleFormCto, setRuleFormCto] = useState('');
   const [ruleFormGrupo, setRuleFormGrupo] = useState('');
   const [ruleFormCustoKm, setRuleFormCustoKm] = useState('');
+  const [alertRulesByScope, setAlertRulesByScope] = useState<Record<string, ItemTrocaAlertRuleConfig[]>>(() => {
+    if (typeof window === 'undefined') return {};
+    return parseAlertRulesByScopeStorage(window.localStorage.getItem(ALERT_RULES_STORAGE_KEY));
+  });
+  const [alertRuleGrupo, setAlertRuleGrupo] = useState('');
+  const [alertRuleModelo, setAlertRuleModelo] = useState('');
+  const [alertRuleApplyAll, setAlertRuleApplyAll] = useState(false);
+  const [alertRuleLabel, setAlertRuleLabel] = useState('');
+  const [alertRuleKm, setAlertRuleKm] = useState('');
+  const [alertRuleTerms, setAlertRuleTerms] = useState('');
+  const [editingAlertRuleId, setEditingAlertRuleId] = useState<string | null>(null);
+  const [alertRulesError, setAlertRulesError] = useState<string | null>(null);
   const [filterCliente, setFilterCliente] = useState<string[]>(() => persistedUiStateRef.current?.filterCliente ?? []);
   const [filterCTO, setFilterCTO] = useState<string[]>(() => persistedUiStateRef.current?.filterCTO ?? []);
   const [filterPlaca, setFilterPlaca] = useState<string[]>(() => persistedUiStateRef.current?.filterPlaca ?? []);
@@ -956,8 +1616,52 @@ export default function AnaliseContrato() {
   const [expandedCtos, setExpandedCtos] = useState<Record<string, boolean>>({});
   const [maintDetailTarget, setMaintDetailTarget] = useState<(Pick<VehicleRow, 'placa'|'dataInicial'|'idLocacao'|'idComercial'|'idVeiculo'|'tipoContrato'> & { mode: DetailMode }) | null>(null);
   const resumoDetailTableRef = useRef<HTMLTableElement | null>(null);
+  const [activeItemsSubTab, setActiveItemsSubTab] = useState<'resumo' | 'status' | 'estimativa'>('resumo');
+
+  // Ordenação específica para mini-tabelas (itensos): mapa por título/bloco
+  const [miniTableSortMap, setMiniTableSortMap] = useState<Record<string, { key: string; dir: 'asc'|'desc' }>>({});
+  const toggleMiniTableSort = (blockId: string, key: string) => {
+    setMiniTableSortMap(prev => {
+      const cur = prev[blockId];
+      if (cur && cur.key === key) return { ...prev, [blockId]: { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } };
+      return { ...prev, [blockId]: { key, dir: 'desc' } };
+    });
+  };
+  const miniTableSortIcon = (blockId: string, key: string) => {
+    const cur = miniTableSortMap[blockId];
+    if (!cur || cur.key !== key) return ' ↕';
+    return cur.dir === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const ESTIMATIVA_PAGE_SIZE = 25;
+  const [estimativaSort, setEstimativaSort] = useState<{ key: string; dir: 'asc'|'desc' }>({ key: 'probabilidade', dir: 'desc' });
+  const [estimativaPage, setEstimativaPage] = useState(1);
+  const toggleEstimativaSort = (key: string) => {
+    setEstimativaSort(prev => {
+      if (prev.key === key) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      return { key, dir: 'desc' };
+    });
+    setEstimativaPage(1);
+  };
+  const estimativaSortIcon = (key: string) => {
+    if (estimativaSort.key !== key) return ' ↕';
+    return estimativaSort.dir === 'asc' ? ' ↑' : ' ↓';
+  };
 
   useEffect(() => { setShowTabHelp(false); }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'itensos') {
+      setActiveItemsSubTab('resumo');
+      setEstimativaPage(1);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'itensos' && activeItemsSubTab === 'estimativa') {
+      setEstimativaPage(1);
+    }
+  }, [activeTab, activeItemsSubTab]);
 
   useEffect(() => {
     if (activeTab === 'resumo' || activeTab === 'listagemCto') return;
@@ -1033,11 +1737,71 @@ export default function AnaliseContrato() {
 
   const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
   const { data: rawF, loading: lF } = useBIData<FrotaRow[]>('dim_frota', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
-  const { data: rawRules, loading: lRules } = useBIData<RegrasContratoRow[]>('dim_regras_contrato', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawRules } = useBIData<RegrasContratoRow[]>('dim_regras_contrato', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
   const { data: rawM, loading: lM } = useBIData<ManutencaoRow[]>('fat_manutencao_unificado', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
   const { data: rawS, loading: lS } = useBIData<SinistroRow[]>('fat_sinistros', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
   const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
   const { data: rawFatItens, loading: lFatItens } = useBIData<FaturamentoItemRow[]>('fat_faturamento_itens', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const itensOsYear0 = new Date().getFullYear();
+  const itensOsYear1 = itensOsYear0 - 1;
+  const itensOsYear2 = itensOsYear0 - 2;
+
+  const { results: itensOsBatchY0, loading: lItensOsY0 } = useBIDataBatch(
+    ['fat_itens_ordem_servico'],
+    undefined,
+    {
+      params: { year: itensOsYear0, limit: 100000 },
+      staleTime: ANALISE_CONTRATO_DATA_STALE_TIME,
+    }
+  );
+  const { results: itensOsBatchY1, loading: lItensOsY1 } = useBIDataBatch(
+    ['fat_itens_ordem_servico'],
+    undefined,
+    {
+      enabled: itensOsYear1 >= 2022,
+      params: { year: itensOsYear1, limit: 100000 },
+      staleTime: ANALISE_CONTRATO_DATA_STALE_TIME,
+    }
+  );
+  const { results: itensOsBatchY2, loading: lItensOsY2 } = useBIDataBatch(
+    ['fat_itens_ordem_servico'],
+    undefined,
+    {
+      enabled: itensOsYear2 >= 2022,
+      params: { year: itensOsYear2, limit: 100000 },
+      staleTime: ANALISE_CONTRATO_DATA_STALE_TIME,
+    }
+  );
+
+  const rawItensOS = useMemo<ItensOrdemServicoRow[]>(() => {
+    const merged = [
+      ...getBatchTable<ItensOrdemServicoRow>(itensOsBatchY0, 'fat_itens_ordem_servico'),
+      ...getBatchTable<ItensOrdemServicoRow>(itensOsBatchY1, 'fat_itens_ordem_servico'),
+      ...getBatchTable<ItensOrdemServicoRow>(itensOsBatchY2, 'fat_itens_ordem_servico'),
+    ];
+
+    const dedup = new Map<string, ItensOrdemServicoRow>();
+    for (const row of merged) {
+      const rowAny = row as any;
+      const idItem = String(rowAny?.IdItemOrdemServico || rowAny?.iditemordemservico || '').trim();
+      const fallbackKey = [
+        rowAny?.IdOrdemServico || rowAny?.idordemservico || rowAny?.OrdemServico || rowAny?.ordemservico || '',
+        rowAny?.IdOcorrencia || rowAny?.idocorrencia || rowAny?.Ocorrencia || rowAny?.ocorrencia || '',
+        rowAny?.DescricaoItem || rowAny?.descricaoitem || '',
+        rowAny?.CriadoEm || rowAny?.criadoem || rowAny?.DataAtualizacaoDados || rowAny?.dataatualizacaodados || '',
+      ].map((v: unknown) => String(v || '').trim()).join('|');
+
+      const key = idItem || fallbackKey;
+      if (!key || dedup.has(key)) continue;
+      dedup.set(key, row);
+    }
+
+    return Array.from(dedup.values());
+  }, [itensOsBatchY0, itensOsBatchY1, itensOsBatchY2]);
+
+  const lItensOS = lItensOsY0
+    || (itensOsYear1 >= 2022 && lItensOsY1)
+    || (itensOsYear2 >= 2022 && lItensOsY2);
   const { data: rawPrecos, loading: _lPrecos } = useBIData<PrecosLocacaoRow[]>('fat_precos_locacao', { limit: 100000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
   const { data: rawMovVeic, loading: lMovVeic } = useBIData<MovimentacaoVeiculoRow[]>('dim_movimentacao_veiculos', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
 
@@ -1078,6 +1842,11 @@ export default function AnaliseContrato() {
   useEffect(() => {
     void loadManualRules();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(ALERT_RULES_STORAGE_KEY, JSON.stringify(alertRulesByScope));
+  }, [alertRulesByScope]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1147,8 +1916,8 @@ export default function AnaliseContrato() {
     resumoSearchTerm,
   ]);
 
-  const initialLoading = lC || lF || lRules;
-  const heavyLoading   = lM || lS || lFat || lFatItens || lMovVeic;
+  const initialLoading = lC || lF;
+  const heavyLoading   = lM || lS || lFat || lFatItens || lItensOS || lMovVeic;
 
   const allContratoOptions = useMemo(() => {
     const contratos = new Set<string>();
@@ -1195,6 +1964,173 @@ export default function AnaliseContrato() {
   const lookupCustoKmManual = (cto: string, grupo: string) => {
     const value = manualCostLookup.get(makeRuleKey(cto, grupo));
     return value != null ? value : null;
+  };
+
+  const getEffectiveAlertRulesForScope = (scopeKeyRaw: string) => {
+    const scopeKey = String(scopeKeyRaw || '').trim();
+    if (!scopeKey) return buildDefaultItemAlertRules();
+    if (Object.prototype.hasOwnProperty.call(alertRulesByScope, scopeKey)) {
+      return (alertRulesByScope[scopeKey] || []).map((rule) => ({
+        ...rule,
+        termos: sanitizeAlertRuleTerms(rule.termos || []),
+      }));
+    }
+    return buildDefaultItemAlertRules();
+  };
+
+  const getEffectiveAlertRulesForVehicle = (vehicle: VehicleRow) => {
+    const scopeKey = buildAlertRuleScopeKey(vehicle.grupo || '', vehicle.modelo || '');
+    if (scopeKey && Object.prototype.hasOwnProperty.call(alertRulesByScope, scopeKey)) {
+      return getEffectiveAlertRulesForScope(scopeKey);
+    }
+    if (Object.prototype.hasOwnProperty.call(alertRulesByScope, ALERT_RULE_SCOPE_ALL)) {
+      return getEffectiveAlertRulesForScope(ALERT_RULE_SCOPE_ALL);
+    }
+    return buildDefaultItemAlertRules();
+  };
+
+  const resetAlertRuleEditor = () => {
+    setEditingAlertRuleId(null);
+    setAlertRuleLabel('');
+    setAlertRuleKm('');
+    setAlertRuleTerms('');
+  };
+
+  const upsertAlertRule = () => {
+    const grupo = String(alertRuleGrupo || '').trim();
+    const modelo = String(alertRuleModelo || '').trim();
+    const scopeKey = buildAlertRuleScopeKey(grupo, modelo, alertRuleApplyAll);
+    const label = String(alertRuleLabel || '').trim();
+    const intervaloKm = Math.max(0, Math.round(parseNum(alertRuleKm)));
+
+    if (!scopeKey) {
+      setAlertRulesError('Selecione Grupo e Modelo, ou marque "Aplicar a todos".');
+      return;
+    }
+    if (!label) {
+      setAlertRulesError('Informe o item de alerta.');
+      return;
+    }
+    if (!intervaloKm) {
+      setAlertRulesError('Informe a KM estimada de troca (maior que zero).');
+      return;
+    }
+
+    const rawTerms = String(alertRuleTerms || '')
+      .split(',')
+      .map(term => term.trim())
+      .filter(Boolean);
+    const terms = sanitizeAlertRuleTerms(rawTerms.length ? rawTerms : buildTermsFromLabel(label));
+    const normalizedLabel = normalizeAlertRuleText(label);
+
+    setAlertRulesByScope((prev) => {
+      const current = Object.prototype.hasOwnProperty.call(prev, scopeKey)
+        ? [...(prev[scopeKey] || [])]
+        : buildDefaultItemAlertRules();
+
+      let next = current;
+      if (editingAlertRuleId) {
+        next = current.map((rule) => (
+          rule.id === editingAlertRuleId
+            ? {
+              ...rule,
+              label,
+              intervaloKm,
+              termos: terms,
+              enabled: true,
+              source: 'custom' as const,
+            }
+            : rule
+        ));
+      } else {
+        const existingByLabel = current.find((rule) => normalizeAlertRuleText(rule.label) === normalizedLabel);
+        if (existingByLabel) {
+          next = current.map((rule) => (
+            rule.id === existingByLabel.id
+              ? {
+                ...rule,
+                label,
+                intervaloKm,
+                termos: terms,
+                enabled: true,
+                source: 'custom' as const,
+              }
+              : rule
+          ));
+        } else {
+          next = [
+            ...current,
+            {
+              id: buildCustomAlertRuleId(label),
+              label,
+              intervaloKm,
+              termos: terms,
+              enabled: true,
+              source: 'custom' as const,
+            },
+          ];
+        }
+      }
+
+      const sorted = [...next].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric: true }));
+      return { ...prev, [scopeKey]: sorted };
+    });
+
+    setAlertRulesError(null);
+    resetAlertRuleEditor();
+  };
+
+  const startEditAlertRule = (scopeKeyRaw: string, rule: ItemTrocaAlertRuleConfig) => {
+    const scopeKey = String(scopeKeyRaw || '').trim();
+    if (!scopeKey) return;
+    if (scopeKey === ALERT_RULE_SCOPE_ALL) {
+      setAlertRuleApplyAll(true);
+      setAlertRuleGrupo('');
+      setAlertRuleModelo('');
+    } else {
+      const [grupo = '', modelo = ''] = scopeKey.split('::');
+      setAlertRuleApplyAll(false);
+      setAlertRuleGrupo(grupo);
+      setAlertRuleModelo(modelo);
+    }
+    setEditingAlertRuleId(rule.id);
+    setAlertRuleLabel(rule.label);
+    setAlertRuleKm(String(rule.intervaloKm).replace('.', ','));
+    setAlertRuleTerms((rule.termos || []).join(', '));
+    setAlertRulesError(null);
+  };
+
+  const deleteAlertRule = (scopeKeyRaw: string, ruleId: string) => {
+    const scopeKey = String(scopeKeyRaw || '').trim();
+    if (!scopeKey || !ruleId) return;
+
+    setAlertRulesByScope((prev) => {
+      const current = Object.prototype.hasOwnProperty.call(prev, scopeKey)
+        ? [...(prev[scopeKey] || [])]
+        : buildDefaultItemAlertRules();
+
+      const filtered = current.filter(rule => rule.id !== ruleId);
+      return { ...prev, [scopeKey]: filtered };
+    });
+
+    if (editingAlertRuleId === ruleId) resetAlertRuleEditor();
+    setAlertRulesError(null);
+  };
+
+  const restoreDefaultAlertRulesForScope = (scopeKeyRaw: string) => {
+    const scopeKey = String(scopeKeyRaw || '').trim();
+    if (!scopeKey) return;
+
+    setAlertRulesByScope((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, scopeKey)) return prev;
+      const next = { ...prev };
+      delete next[scopeKey];
+      return next;
+    });
+
+    const selectedScopeKey = buildAlertRuleScopeKey(alertRuleGrupo, alertRuleModelo, alertRuleApplyAll);
+    if (selectedScopeKey === scopeKey) resetAlertRuleEditor();
+    setAlertRulesError(null);
   };
 
   const upsertManualRule = async () => {
@@ -1291,6 +2227,7 @@ export default function AnaliseContrato() {
     const arrS = rawS as SinistroRow[]|null   ?? [];
     const arrF = rawFat as FaturamentoRow[]|null ?? [];
     const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
+    const arrItensOS = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
     const arrPrecos = rawPrecos as PrecosLocacaoRow[]|null ?? [];
     const arrMov = rawMovVeic as MovimentacaoVeiculoRow[]|null ?? [];
 
@@ -1374,7 +2311,7 @@ export default function AnaliseContrato() {
       return precos.length > 0 ? precos[precos.length - 1].valor : 0;
     };
 
-    type MA = { plate: string; date: Date | null; year: number; osId: string; cost: number; reemb: number };
+    type MA = { plate: string; date: Date | null; year: number; occurrenceKey: string; cost: number; reemb: number; isCancelled: boolean };
     const maintByPlate = new Map<string, MA[]>();
     const seenMaintenance = new Set<string>();
     for (const m of arrM) {
@@ -1382,20 +2319,20 @@ export default function AnaliseContrato() {
       const placa = normalizePlate(rawPlaca);
       const placaKey = canonicalPlate(rawPlaca);
       if (!placa) continue;
-      const rawStatus = (m.SituacaoOrdemServico || m.Situacao || m.Status || m.StatusOrdem || m.SituacaoOcorrencia || m.StatusOcorrencia || '');
-      const status = String(rawStatus).toLowerCase();
-      if (status.includes('cancel')) continue;
+      const mAny = m as any;
+      const status = getMaintenanceStatusText(mAny);
+      const isCancelled = isCancelledStatus(status);
       const rawDate = m.OrdemServicoCriadaEm || m.DataCriacao || m.DataEntrada || m.DataCriacaoOS || (m as any).DataServico || (m as any).DataAtualizacaoDados || '';
       const date = parseDateFlexible(rawDate);
       const yr = date ? date.getFullYear() : getYear(rawDate);
       if(yr<2022 || yr>2030) continue;
-      const osId = normalizeMaintenanceOsId(m.IdOrdemServico || m.idordemservico || m.IdOcorrencia || `${placa}-${yr}-${rawDate}`);
-      const dedupeKey = `${placaKey || placa}::${osId || rawDate || `${yr}`}`;
+      const occurrenceKey = getMaintenanceOccurrenceKey(mAny, `${placa}-${yr}-${rawDate}`);
+      const dedupeKey = `${placaKey || placa}::${occurrenceKey || rawDate || `${yr}`}`;
       if (seenMaintenance.has(dedupeKey)) continue;
       seenMaintenance.add(dedupeKey);
       const cost = parseNum(m.ValorTotalFatItens || m.ValorTotal || m.valortotal || m.CustoTotalOS || 0);
       const reemb = parseNum(m.ValorReembolsavelFatItens || m.ValorReembolsavel || m.valorreembolsavel || 0);
-      const rec = { plate: placa, date, year: yr, osId, cost, reemb };
+      const rec = { plate: placa, date, year: yr, occurrenceKey, cost, reemb, isCancelled };
       const keys = Array.from(new Set([placa, placaKey].filter(Boolean)));
       for (const k of keys) {
         const bucket = maintByPlate.get(k) || [];
@@ -1431,6 +2368,84 @@ export default function AnaliseContrato() {
         smKey[yr].reemb += sinReemb;
         smKey[yr].qty += 1;
       }
+    }
+
+    type IA = {
+      key: string;
+      plate: string;
+      plateKey: string;
+      idVeiculo: string;
+      idLocacao: string;
+      idComercial: string;
+      date: Date | null;
+      osId: string;
+      occurrence: string;
+      itemDescricao: string;
+      grupoDespesa: string;
+      fornecedor: string;
+      quantidade: number;
+      valorTotal: number;
+      valorReembolsavel: number;
+    };
+    const itensByPlate = new Map<string, IA[]>();
+    const itensByVeiculo = new Map<string, IA[]>();
+    const itensByLocacao = new Map<string, IA[]>();
+    const itensByComercial = new Map<string, IA[]>();
+    const seenItens = new Set<string>();
+
+    const pushItem = (map: Map<string, IA[]>, key: string, rec: IA) => {
+      if (!key) return;
+      const bucket = map.get(key) || [];
+      bucket.push(rec);
+      map.set(key, bucket);
+    };
+
+    for (const item of arrItensOS) {
+      const itemAny = item as any;
+      const idItem = String(itemAny?.IdItemOrdemServico || itemAny?.iditemordemservico || '').trim();
+      const fallback = [
+        itemAny?.IdOrdemServico || itemAny?.idordemservico || itemAny?.OrdemServico || itemAny?.ordemservico || '',
+        itemAny?.IdOcorrencia || itemAny?.idocorrencia || itemAny?.Ocorrencia || itemAny?.ocorrencia || '',
+        itemAny?.DescricaoItem || itemAny?.descricaoitem || itemAny?.Item || itemAny?.item || '',
+        itemAny?.DataCriacaoOcorrencia || itemAny?.DataCriacao || itemAny?.DataAtualizacaoDados || '',
+      ].map((v: unknown) => String(v || '').trim()).join('|');
+      const key = idItem || fallback;
+      if (!key || seenItens.has(key)) continue;
+      seenItens.add(key);
+
+      const date = getItemOsDate(itemAny);
+      const plate = normalizePlate(itemAny?.Placa || itemAny?.placa || '');
+      const plateKey = canonicalPlate(itemAny?.Placa || itemAny?.placa || '');
+      const idVeiculo = String(itemAny?.IdVeiculo || itemAny?.idveiculo || '').trim().toUpperCase();
+      const idLocacao = String(itemAny?.IdContratoLocacao || itemAny?.idcontratolocacao || '').trim().toUpperCase();
+      const idComercial = String(itemAny?.IdContratoComercial || itemAny?.idcontratocomercial || itemAny?.ContratoComercial || itemAny?.contratocomercial || '').trim().toUpperCase();
+      const valorTotal = getItemOsCost(itemAny);
+      const valorReembolsavel = getItemOsReembolso(itemAny);
+      const quantidade = getItemOsQuantity(itemAny);
+
+      const rec: IA = {
+        key,
+        plate,
+        plateKey,
+        idVeiculo,
+        idLocacao,
+        idComercial,
+        date,
+        osId: getMaintenanceOrderDisplay(itemAny),
+        occurrence: getMaintenanceOccurrenceDisplay(itemAny),
+        itemDescricao: getItemOsDescription(itemAny),
+        grupoDespesa: getItemOsGrupoDespesa(itemAny),
+        fornecedor: getItemOsFornecedor(itemAny),
+        quantidade,
+        valorTotal,
+        valorReembolsavel,
+      };
+
+      const plateTargets = Array.from(new Set([plate, plateKey].filter(Boolean)));
+      for (const plateTarget of plateTargets) pushItem(itensByPlate, plateTarget, rec);
+      pushItem(itensByVeiculo, idVeiculo, rec);
+      pushItem(itensByLocacao, idLocacao, rec);
+      pushItem(itensByComercial, idComercial, rec);
     }
 
     const notaYear = new Map<string, number>();
@@ -1569,8 +2584,8 @@ export default function AnaliseContrato() {
         ...(realPlacaKey && realPlacaKey !== realPlaca ? (maintByPlate.get(realPlacaKey) || []) : []),
       ];
       const seenRec = new Set<string>();
-      const maintRecords = mergedMaint.filter(rec => {
-        const recUnique = `${rec.osId}::${rec.date?.toISOString() || ''}`;
+      const maintRecordsAll = mergedMaint.filter(rec => {
+        const recUnique = `${rec.occurrenceKey}::${rec.date?.toISOString() || ''}`;
         if (seenRec.has(recUnique)) return false;
         seenRec.add(recUnique);
         if (!(canonicalPlate(rec.plate) === realPlacaKey)) return false;
@@ -1580,19 +2595,30 @@ export default function AnaliseContrato() {
         return true;
       });
 
-      const mm = new Map<number, { cost:number; reemb:number; osIds:Set<string> }>();
-      const maintOsIds = new Set<string>();
-      for (const rec of maintRecords) {
+      const mm = new Map<number, { cost:number; reemb:number; occurrenceKeys:Set<string> }>();
+      const maintOccurrenceKeys = new Set<string>();
+      const maintOccurrenceAllKeys = new Set<string>();
+      const maintOccurrenceCancelledKeys = new Set<string>();
+      for (const rec of maintRecordsAll) {
+        maintOccurrenceAllKeys.add(rec.occurrenceKey);
+        if (rec.isCancelled) {
+          maintOccurrenceCancelledKeys.add(rec.occurrenceKey);
+          continue;
+        }
         if (rec.year < 2022 || rec.year > 2030) continue;
-        if (!mm.has(rec.year)) mm.set(rec.year, { cost:0, reemb:0, osIds:new Set<string>() });
+        if (!mm.has(rec.year)) mm.set(rec.year, { cost:0, reemb:0, occurrenceKeys:new Set<string>() });
         const bucket = mm.get(rec.year)!;
         bucket.cost += rec.cost;
         bucket.reemb += rec.reemb;
-        bucket.osIds.add(rec.osId);
-        maintOsIds.add(rec.osId);
+        bucket.occurrenceKeys.add(rec.occurrenceKey);
+        maintOccurrenceKeys.add(rec.occurrenceKey);
       }
 
-      const passagemTotal = maintOsIds.size;
+      const passagemTotal = maintOccurrenceKeys.size;
+      const qtdOcorrenciasTotal = maintOccurrenceAllKeys.size;
+      const qtdOcorrenciasCanceladas = maintOccurrenceCancelledKeys.size;
+      const qtdOcorrenciasEfetivas = maintOccurrenceKeys.size;
+      const pctOcorrenciasCanceladas = qtdOcorrenciasTotal > 0 ? qtdOcorrenciasCanceladas / qtdOcorrenciasTotal : 0;
       const passagemIdeal = kmDivisor > 0 ? kmAtual / kmDivisor : 0;
       const passagemIdealExibida = Math.round(passagemIdeal);
 
@@ -1603,7 +2629,7 @@ export default function AnaliseContrato() {
 
       let totalManutencao = 0, totalReembMan = 0;
       for (const bucket of mm.values()) { totalManutencao += bucket.cost; totalReembMan += bucket.reemb; }
-      const cntMan = maintOsIds.size;
+      const cntMan = maintOccurrenceKeys.size;
       
       const ticketMedio = cntMan > 0 ? totalManutencao / cntMan : 0;
       const custoKmMan = kmAtual > 0 ? totalManutencao / kmAtual : 0;
@@ -1626,6 +2652,43 @@ export default function AnaliseContrato() {
       const fm = fatIdxByVeiculo.get(idVeiculoKey) || fatIdxByLocacao.get(idLocacaoKey) || fatIdxByComercial.get(idComercialKey) || fatIdxByComercial.get(contratoComercialKey) || {};
       let faturamentoTotal = 0;
       for (const y in fm) faturamentoTotal += fm[y];
+
+      const itemCandidates: IA[] = [
+        ...(itensByPlate.get(realPlaca) || []),
+        ...(realPlacaKey && realPlacaKey !== realPlaca ? (itensByPlate.get(realPlacaKey) || []) : []),
+        ...(itensByVeiculo.get(idVeiculoKey) || []),
+        ...(itensByLocacao.get(idLocacaoKey) || []),
+        ...(itensByComercial.get(idComercialKey) || []),
+        ...(itensByComercial.get(contratoComercialKey) || []),
+      ];
+      const itensUnicos = new Map<string, IA>();
+      for (const rec of itemCandidates) {
+        if (!rec) continue;
+        if (rec.date) {
+          if (contractStart && rec.date < contractStart) continue;
+          if (rec.date > today) continue;
+        }
+        if (!itensUnicos.has(rec.key)) itensUnicos.set(rec.key, rec);
+      }
+
+      let totalItensOsValor = 0;
+      let totalItensOsReemb = 0;
+      let qtdItensOs = 0;
+      const osComItens = new Set<string>();
+      const tiposItens = new Set<string>();
+      for (const rec of itensUnicos.values()) {
+        totalItensOsValor += Number(rec.valorTotal) || 0;
+        totalItensOsReemb += Number(rec.valorReembolsavel) || 0;
+        qtdItensOs += Number(rec.quantidade) || 0;
+        if (rec.osId) osComItens.add(rec.osId);
+        if (rec.itemDescricao) tiposItens.add(rec.itemDescricao.toUpperCase());
+      }
+      const qtdOsComItens = osComItens.size;
+      const qtdTiposItensOs = tiposItens.size;
+      const custoLiqItensOs = totalItensOsValor - totalItensOsReemb;
+      const ticketMedioOsComItens = qtdOsComItens > 0 ? totalItensOsValor / qtdOsComItens : 0;
+      const custoMedioItemOs = qtdItensOs > 0 ? totalItensOsValor / qtdItensOs : 0;
+      const pctRecuperacaoItensOs = totalItensOsValor > 0 ? totalItensOsReemb / totalItensOsValor : 0;
 
       const diferencaPassagem = passagemTotal - passagemIdeal;
       const pctPassagem = passagemIdealExibida > 0 ? passagemTotal / passagemIdealExibida - 1 : 0;
@@ -1665,12 +2728,13 @@ export default function AnaliseContrato() {
       const ultimoPrecoExibido = isCortesiaContrato ? 0 : ultimoPreco;
       const diferencaFaturamentoExibida = isCortesiaContrato ? 0 : diferencaFaturamento;
       const projecaoFaturamentoExibida = isCortesiaContrato ? 0 : projecaoFaturamento;
+      const pctItensOsFat = faturamentoTotalExibido > 0 ? totalItensOsValor / faturamentoTotalExibido : 0;
 
       const years: Record<number, any> = {};
       for (let y = 2022; y <= 2030; y++) {
         const yr = mm.get(y);
         years[y] = {
-          pass: yr?.osIds.size || 0,
+          pass: yr?.occurrenceKeys.size || 0,
           man: yr?.cost || 0,
           reembMan: yr?.reemb || 0,
           sin: sm[y]?.cost || 0,
@@ -1698,6 +2762,7 @@ export default function AnaliseContrato() {
         franquiaBanco,
         custoKmManual: manualCustoKm,
         passagemTotal, passagemIdeal: passagemIdealExibida,
+        qtdOcorrenciasTotal, qtdOcorrenciasEfetivas, qtdOcorrenciasCanceladas, pctOcorrenciasCanceladas,
         diferencaPassagem: Math.round(diferencaPassagem), pctPassagem,
         custoManPrevisto, custoManRealizado, difManPrevReal, pctDifManPrevReal, custoManLiquido, difCustoManLiq, pctDifCustoManLiq,
         totalManutencao, ticketMedio, custoKmMan,
@@ -1707,12 +2772,15 @@ export default function AnaliseContrato() {
         faturamentoTotal: faturamentoTotalExibido,
         faturamentoPrevisto: faturamentoPrevistoExibido, ultimoValorLocacao: ultimoPrecoExibido, diferencaFaturamento: diferencaFaturamentoExibida, projecaoFaturamento: projecaoFaturamentoExibida,
         pctManFat, pctCustoLiqManFat, pctSinFat, pctCustoLiqSinFat, pctManSinFat,
+        qtdOsComItens, qtdItensOs, qtdTiposItensOs,
+        totalItensOsValor, totalItensOsReemb, custoLiqItensOs,
+        ticketMedioOsComItens, custoMedioItemOs, pctRecuperacaoItensOs, pctItensOsFat,
         years
       };
     });
 
     return result;
-  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, rawPrecos, rawMovVeic, kmDivisor, bancoRegraLookup, manualCostLookup]);
+  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, rawItensOS, rawPrecos, rawMovVeic, kmDivisor, bancoRegraLookup, manualCostLookup]);
 
   const getVencInfo = (v: string) => {
     const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -1856,6 +2924,38 @@ export default function AnaliseContrato() {
     if (modalGrupoOptions.includes(ruleFormGrupo)) return;
     setRuleFormGrupo('');
   }, [ruleFormCto, ruleFormGrupo, modalGrupoOptions]);
+
+  const alertRuleScopeKey = useMemo(
+    () => buildAlertRuleScopeKey(alertRuleGrupo, alertRuleModelo, alertRuleApplyAll),
+    [alertRuleGrupo, alertRuleModelo, alertRuleApplyAll],
+  );
+
+  const modelOptionsForAlertRule = useMemo(() => {
+    if (!alertRuleGrupo) return [] as string[];
+    return Array.from(new Set(
+      vehicleRows
+        .filter(row => String(row.grupo || '').trim() === alertRuleGrupo)
+        .map(row => String(row.modelo || '').trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+  }, [vehicleRows, alertRuleGrupo]);
+
+  useEffect(() => {
+    if (alertRuleApplyAll) return;
+    if (!alertRuleGrupo || !alertRuleModelo) return;
+    if (modelOptionsForAlertRule.includes(alertRuleModelo)) return;
+    setAlertRuleModelo('');
+  }, [alertRuleApplyAll, alertRuleGrupo, alertRuleModelo, modelOptionsForAlertRule]);
+
+  const alertRulesForSelectedScope = (() => {
+    if (!alertRuleScopeKey) return [] as ItemTrocaAlertRuleConfig[];
+    return getEffectiveAlertRulesForScope(alertRuleScopeKey);
+  })();
+
+  const alertRulesSelectedScopeUsesCustomConfig = useMemo(() => {
+    if (!alertRuleScopeKey) return false;
+    return Object.prototype.hasOwnProperty.call(alertRulesByScope, alertRuleScopeKey);
+  }, [alertRuleScopeKey, alertRulesByScope]);
 
   const displayRows = useMemo(() => {
     let rows = vehicleRows.filter(r => rowMatchesFilters(r));
@@ -2300,6 +3400,43 @@ export default function AnaliseContrato() {
     return { status, motivo: motivos.join(' | ') };
   };
 
+  const osPorOcorrencia = useMemo(() => {
+    const itens = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    const map = new Map<string, Set<string>>();
+
+    const add = (key: string, os: string, plate?: unknown) => {
+      if (!key || !os) return;
+      let bucket = map.get(key);
+      if (!bucket) {
+        bucket = new Set<string>();
+        map.set(key, bucket);
+      }
+      bucket.add(os);
+
+      const scopedKey = getPlateOccurrenceScopedKey(plate, key);
+      if (scopedKey) {
+        let scopedBucket = map.get(scopedKey);
+        if (!scopedBucket) {
+          scopedBucket = new Set<string>();
+          map.set(scopedKey, scopedBucket);
+        }
+        scopedBucket.add(os);
+      }
+    };
+
+    for (const item of itens) {
+      const itemAny = item as any;
+      const os = getMaintenanceOrderDisplay(itemAny);
+      if (!os) continue;
+
+      const lookupKeys = getMaintenanceOccurrenceLookupKeys(itemAny);
+      const plate = itemAny?.Placa || itemAny?.placa || '';
+      for (const key of lookupKeys) add(key, os, plate);
+    }
+
+    return map;
+  }, [rawItensOS]);
+
   const maintDetailData = useMemo<{ rows: MaintDetailRow[]; resumoPorTipo: MaintDetailResumoRow[] }>(() => {
     if (!maintDetailTarget) return { rows: [], resumoPorTipo: [] };
     const arrM = rawM as ManutencaoRow[]|null ?? [];
@@ -2314,6 +3451,33 @@ export default function AnaliseContrato() {
     const resumoMap = new Map<string, MaintDetailResumoRow>();
     const includeManutencao = maintDetailTarget.mode === 'manutencao' || maintDetailTarget.mode === 'mansin';
     const includeSinistro = maintDetailTarget.mode === 'sinistro' || maintDetailTarget.mode === 'mansin';
+
+    const collectLinkedOrders = (rowAny: Record<string, unknown>, fallback: string) => {
+      const linked = new Set<string>();
+      const lookupKeys = getMaintenanceOccurrenceLookupKeys(rowAny, fallback);
+      const possiblePlates = [
+        rowAny?.Placa,
+        rowAny?.placa,
+        maintDetailTarget.placa,
+      ];
+
+      for (const key of lookupKeys) {
+        const globalOrders = osPorOcorrencia.get(key);
+        if (globalOrders) {
+          for (const order of globalOrders) linked.add(order);
+        }
+
+        for (const plate of possiblePlates) {
+          const scopedKey = getPlateOccurrenceScopedKey(plate, key);
+          if (!scopedKey) continue;
+          const scopedOrders = osPorOcorrencia.get(scopedKey);
+          if (!scopedOrders) continue;
+          for (const order of scopedOrders) linked.add(order);
+        }
+      }
+
+      return Array.from(linked);
+    };
 
     const getResumo = (tipoRaw: unknown) => {
       const tipo = String(tipoRaw || '').trim() || 'Sem tipo';
@@ -2330,40 +3494,48 @@ export default function AnaliseContrato() {
         const plateKey = canonicalPlate(m?.Placa || '');
         if (!plateKey || plateKey !== targetKey) continue;
 
-        const tipo = String((m as any)?.Tipo || (m as any)?.TipoManutencao || (m as any)?.TipoOcorrencia || 'Manutenção').trim() || 'Sem tipo';
-        const statusRaw = (m as any)?.SituacaoOrdemServico || (m as any)?.situacaoordemservico || (m as any)?.SituacaoOS || m?.Situacao || m?.Status || m?.StatusOrdem || m?.SituacaoOcorrencia || m?.StatusOcorrencia || '';
-        const status = String(statusRaw || '').toLowerCase();
-        const valorTotal = parseNum((m as any)?.ValorTotalFatItens || (m as any)?.ValorTotal || (m as any)?.valortotal || (m as any)?.CustoTotalOS || 0);
-        const valorReembolsavel = parseNum((m as any)?.ValorReembolsavelFatItens || (m as any)?.ValorReembolsavel || (m as any)?.valorreembolsavel || 0);
+        const mAny = m as any;
+        const tipo = String(mAny?.Tipo || mAny?.TipoManutencao || mAny?.TipoOcorrencia || 'Manutenção').trim() || 'Sem tipo';
+        const statusText = getMaintenanceStatusText(mAny);
+        const valorTotal = parseNum(mAny?.ValorTotalFatItens || mAny?.ValorTotal || mAny?.valortotal || mAny?.CustoTotalOS || 0);
+        const valorReembolsavel = parseNum(mAny?.ValorReembolsavelFatItens || mAny?.ValorReembolsavel || mAny?.valorreembolsavel || 0);
         const resumo = getResumo(tipo);
         resumo.totalOs += 1;
         resumo.valorTotal += valorTotal;
         resumo.valorReembolsavel += valorReembolsavel;
 
-        if (status.includes('cancel')) {
+        const isCancelled = isCancelledStatus(statusText);
+        if (isCancelled) {
           resumo.canceladas += 1;
+        }
+
+        const rawDate = mAny?.OrdemServicoCriadaEm || mAny?.DataCriacao || mAny?.DataEntrada || mAny?.DataCriacaoOS || mAny?.DataServico || mAny?.DataAtualizacaoDados || '';
+        const date = parseDateFlexible(rawDate);
+        if (date) {
+          if (contractStart && date < contractStart) continue;
+          if (date > today) continue;
+        } else if (!isCancelled) {
           continue;
         }
 
-        const rawDate = (m as any)?.OrdemServicoCriadaEm || (m as any)?.DataCriacao || (m as any)?.DataEntrada || (m as any)?.DataCriacaoOS || (m as any)?.DataServico || (m as any)?.DataAtualizacaoDados || '';
-        const date = parseDateFlexible(rawDate);
-        if (!date) continue;
-        if (contractStart && date < contractStart) continue;
-        if (date > today) continue;
-
-        const rawOs = (m as any)?.IdOrdemServico || (m as any)?.idordemservico || (m as any)?.IdOcorrencia || (m as any)?.numeroos;
-        const osId = normalizeDisplayOsId(rawOs, `${targetKey}-${rawDate}`);
-        const dedupeKey = `M::${osId}::${date.toISOString()}`;
+        const occurrenceKey = getMaintenanceOccurrenceKey(mAny, `${targetKey}-${rawDate}-${tipo}`);
+        const dedupeKey = `M::${occurrenceKey}::${date?.toISOString() || rawDate || 'sem-data'}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
 
+        const linkedOrders = collectLinkedOrders(mAny, `${targetKey}-${rawDate}-${tipo}`);
+        const osId = formatOrderDisplayList([
+          getMaintenanceOrderDisplay(mAny),
+          ...linkedOrders,
+        ]);
+
         rows.push({
           osId,
-          ocorrencia: normalizeDisplayOccurrence((m as any)?.IdOcorrencia || (m as any)?.idocorrencia || (m as any)?.Ocorrencia || (m as any)?.NumeroOcorrencia || ''),
-          date,
+          ocorrencia: getMaintenanceOccurrenceDisplay(mAny),
+          date: date || null,
           tipo,
-          motivo: String((m as any)?.Motivo || (m as any)?.MotivoOcorrencia || '').trim(),
-          situacao: String((m as any)?.SituacaoOrdemServico || (m as any)?.situacaoordemservico || (m as any)?.SituacaoOS || (m as any)?.Situacao || (m as any)?.StatusOrdem || (m as any)?.Status || (m as any)?.SituacaoOcorrencia || (m as any)?.StatusOcorrencia || '').trim(),
+          motivo: String(mAny?.Motivo || mAny?.MotivoOcorrencia || '').trim(),
+          situacao: statusText || '—',
           valorTotal,
           valorReembolsavel,
         });
@@ -2375,45 +3547,53 @@ export default function AnaliseContrato() {
         const plateKey = canonicalPlate((s as any)?.Placa || '');
         if (!plateKey || plateKey !== targetKey) continue;
 
-        const statusRaw = (s as any)?.SituacaoOrdemServico || (s as any)?.situacaoordemservico || (s as any)?.Situacao || (s as any)?.Status || '';
-        const status = String(statusRaw || '').toLowerCase();
-        if (status.includes('cancel')) continue;
+        const sAny = s as any;
+        const statusRaw = sAny?.SituacaoOrdemServico || sAny?.situacaoordemservico || sAny?.Situacao || sAny?.Status || '';
+        const isCancelled = isCancelledStatus(statusRaw);
 
-        const rawDate = (s as any)?.DataSinistro || (s as any)?.DataCriacao || (s as any)?.DataOcorrencia || (s as any)?.DataAtualizacaoDados || '';
+        const rawDate = sAny?.DataSinistro || sAny?.DataCriacao || sAny?.DataOcorrencia || sAny?.DataAtualizacaoDados || '';
         const date = parseDateFlexible(rawDate);
-        if (!date) continue;
-        if (contractStart && date < contractStart) continue;
-        if (date > today) continue;
+        if (date) {
+          if (contractStart && date < contractStart) continue;
+          if (date > today) continue;
+        } else if (!isCancelled) {
+          continue;
+        }
 
-        const rawOs = (s as any)?.IdOrdemServico || (s as any)?.idordemservico || (s as any)?.IdOcorrencia || (s as any)?.IdSinistro || (s as any)?.IdEvento || (s as any)?.NumeroOS;
-        const osId = normalizeDisplayOsId(rawOs, `${targetKey}-SIN-${rawDate}`);
-        const dedupeKey = `S::${osId}::${date.toISOString()}`;
+        const occurrenceKey = getMaintenanceOccurrenceKey(sAny, sAny?.IdSinistro || sAny?.IdEvento || `${targetKey}-SIN-${rawDate}`);
+        const dedupeKey = `S::${occurrenceKey}::${date?.toISOString() || rawDate || 'sem-data'}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
 
-        const valorTotal = parseSinistroCost(s as any);
-        const valorReembolsavel = parseSinistroReembolso(s as any);
+        const linkedOrders = collectLinkedOrders(sAny, sAny?.IdSinistro || sAny?.IdEvento || `${targetKey}-SIN-${rawDate}`);
+        const osId = formatOrderDisplayList([
+          normalizeDisplayOsId(sAny?.IdOrdemServico || sAny?.idordemservico || sAny?.NumeroOS || sAny?.numeroos || ''),
+          ...linkedOrders,
+        ]);
+
+        const valorTotal = parseSinistroCost(sAny);
+        const valorReembolsavel = parseSinistroReembolso(sAny);
 
         const situacaoCandidates = [
-          (s as any)?.SituacaoOrdemServico,
-          (s as any)?.situacaoordemservico,
-          (s as any)?.SituacaoOS,
-          (s as any)?.SituacaoSinistro,
-          (s as any)?.StatusSinistro,
-          (s as any)?.Situacao,
-          (s as any)?.Status,
-          (s as any)?.StatusOcorrencia,
-          (s as any)?.SituacaoOcorrencia,
-          (s as any)?.StatusOrdem,
+          sAny?.SituacaoOrdemServico,
+          sAny?.situacaoordemservico,
+          sAny?.SituacaoOS,
+          sAny?.SituacaoSinistro,
+          sAny?.StatusSinistro,
+          sAny?.Situacao,
+          sAny?.Status,
+          sAny?.StatusOcorrencia,
+          sAny?.SituacaoOcorrencia,
+          sAny?.StatusOrdem,
         ].map((v:any)=>String(v||'').trim()).filter(Boolean);
         const situacaoValue = situacaoCandidates.length ? situacaoCandidates[0] : '—';
 
         rows.push({
           osId,
-          ocorrencia: normalizeDisplayOccurrence((s as any)?.IdOcorrencia || (s as any)?.idocorrencia || (s as any)?.Ocorrencia || (s as any)?.NumeroOcorrencia || ''),
-          date,
+          ocorrencia: getMaintenanceOccurrenceDisplay(sAny),
+          date: date || null,
           tipo: 'Sinistro',
-          motivo: String((s as any)?.Motivo || (s as any)?.TipoSinistro || (s as any)?.Descricao || '').trim(),
+          motivo: String(sAny?.Motivo || sAny?.TipoSinistro || sAny?.Descricao || '').trim(),
           situacao: situacaoValue,
           valorTotal,
           valorReembolsavel,
@@ -2432,7 +3612,7 @@ export default function AnaliseContrato() {
       rows: rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)),
       resumoPorTipo,
     };
-  }, [maintDetailTarget, rawM, rawS]);
+  }, [maintDetailTarget, rawM, rawS, osPorOcorrencia]);
 
   const fatDetailRows = useMemo<FaturamentoDetailRow[]>(() => {
     if (!maintDetailTarget || maintDetailTarget.mode !== 'faturamento') return [];
@@ -2576,10 +3756,83 @@ export default function AnaliseContrato() {
     return rows.sort((a, b) => (b.ano - a.ano) || (b.mes - a.mes));
   }, [maintDetailTarget, rawFat, rawFatItens, rawPrecos]);
 
+  const itensOsDetailRows = useMemo<ItemOsDetailRow[]>(() => {
+    if (!maintDetailTarget || maintDetailTarget.mode !== 'itensos') return [];
+
+    const arrItens = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    const targetPlaca = normalizePlate(maintDetailTarget.placa || '');
+    const targetPlacaKey = canonicalPlate(maintDetailTarget.placa || '');
+    const targetVeiculo = String(maintDetailTarget.idVeiculo || '').trim().toUpperCase();
+    const targetLocacao = String(maintDetailTarget.idLocacao || '').trim().toUpperCase();
+    const targetComercial = String(maintDetailTarget.idComercial || '').trim().toUpperCase();
+
+    const contractStart = parseDateFlexible(maintDetailTarget.dataInicial || '');
+    const today = new Date();
+
+    const matchesTarget = (row: any) => {
+      const rowPlaca = normalizePlate(row.Placa || row.placa || '');
+      const rowPlacaKey = canonicalPlate(row.Placa || row.placa || '');
+      const rowVeiculo = String(row.IdVeiculo || row.idveiculo || '').trim().toUpperCase();
+      const rowLocacao = String(row.IdContratoLocacao || row.idcontratolocacao || '').trim().toUpperCase();
+      const rowComercial = String(row.IdContratoComercial || row.idcontratocomercial || row.ContratoComercial || row.contratocomercial || '').trim().toUpperCase();
+
+      if (targetPlaca && rowPlaca && rowPlaca === targetPlaca) return true;
+      if (targetPlacaKey && rowPlacaKey && rowPlacaKey === targetPlacaKey) return true;
+      if (targetVeiculo && rowVeiculo && rowVeiculo === targetVeiculo) return true;
+      if (targetLocacao && rowLocacao && rowLocacao === targetLocacao) return true;
+      if (targetComercial && rowComercial && rowComercial === targetComercial) return true;
+      return false;
+    };
+
+    const dedup = new Set<string>();
+    const rows: ItemOsDetailRow[] = [];
+
+    for (const item of arrItens) {
+      const itemAny = item as any;
+      if (!matchesTarget(itemAny)) continue;
+
+      const date = getItemOsDate(itemAny);
+      if (date) {
+        if (contractStart && date < contractStart) continue;
+        if (date > today) continue;
+      }
+
+      const itemId = String(itemAny?.IdItemOrdemServico || itemAny?.iditemordemservico || '').trim();
+      const osId = getMaintenanceOrderDisplay(itemAny);
+      const occurrence = getMaintenanceOccurrenceDisplay(itemAny);
+      const itemDescricao = getItemOsDescription(itemAny);
+      const quantidade = getItemOsQuantity(itemAny);
+      const valorTotal = getItemOsCost(itemAny);
+      const valorReembolsavel = getItemOsReembolso(itemAny);
+
+      const dedupeKey = itemId || `${osId}|${occurrence}|${itemDescricao}|${String(date?.toISOString() || '')}|${valorTotal}|${valorReembolsavel}`;
+      if (dedup.has(dedupeKey)) continue;
+      dedup.add(dedupeKey);
+
+      rows.push({
+        osId,
+        ocorrencia: occurrence,
+        date,
+        itemDescricao,
+        grupoDespesa: getItemOsGrupoDespesa(itemAny),
+        fornecedor: getItemOsFornecedor(itemAny),
+        quantidade,
+        valorTotal,
+        valorReembolsavel,
+      });
+    }
+
+    return rows.sort((a, b) => {
+      const byDate = (b.date?.getTime() || 0) - (a.date?.getTime() || 0);
+      if (byDate !== 0) return byDate;
+      return (b.valorTotal || 0) - (a.valorTotal || 0);
+    });
+  }, [maintDetailTarget, rawItensOS]);
+
   const getDynYearsForTab = (tab: TabKey) => {
     const minYear = 2022;
     const maxYear = 2026;
-    if (tab === 'resumo' || tab === 'listagemCto') return [];
+    if (tab === 'resumo' || tab === 'listagemCto' || tab === 'itensos') return [];
     if (tab === 'passagem') {
       const yearsSet = new Set<number>();
       for (const r of displayRows) {
@@ -2636,6 +3889,15 @@ export default function AnaliseContrato() {
       return displayRows.filter(row => (Number(row.custoLiqMan) || 0) > 0).length;
     }
 
+    if (tab === 'itensos') {
+      return displayRows.filter(row => {
+        const fat = Number(row.faturamentoTotal) || 0;
+        const pct = Number(row.pctItensOsFat) || 0;
+        const custoLiq = Number(row.custoLiqItensOs) || 0;
+        return (fat > 0 && pct > fatPctAlertThreshold) || (fat <= 0 && custoLiq > 0);
+      }).length;
+    }
+
     if (tab === 'sinistro') {
       return displayRows.filter(row => (Number(row.custoLiqSin) || 0) > 0).length;
     }
@@ -2662,6 +3924,9 @@ export default function AnaliseContrato() {
     let totalPassagemPrevista = 0;
     let veiculosCriticos = 0;
     let somaRodagemMedia = 0;
+    let totalOcorrenciasManutencao = 0;
+    let totalOcorrenciasEfetivas = 0;
+    let totalOcorrenciasCanceladas = 0;
 
     let totalPrevisto = 0;
     let totalRealizado = 0;
@@ -2682,11 +3947,19 @@ export default function AnaliseContrato() {
     let totalEventosManSin = 0;
 
     let faturamentoTotal = 0;
+    let totalItensOsValor = 0;
+    let totalItensOsReemb = 0;
+    let totalItensOsQtd = 0;
+    let totalOsComItens = 0;
+    let totalItensTipos = 0;
 
     for (const row of displayRows) {
       totalPassagens += Number(row.passagemTotal) || 0;
       totalPassagemPrevista += Number(row.passagemIdeal) || 0;
       somaRodagemMedia += Number(row.rodagemMedia) || 0;
+      totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
+      totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
+      totalOcorrenciasCanceladas += Number(row.qtdOcorrenciasCanceladas) || 0;
       if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticos++;
 
       totalPrevisto += Number(row.custoManPrevisto) || 0;
@@ -2708,11 +3981,17 @@ export default function AnaliseContrato() {
       totalEventosManSin += (Number(row.qtdOsManutencao) || 0) + (Number(row.qtdSinistros) || 0);
 
       faturamentoTotal += Number(row.faturamentoTotal) || 0;
+      totalItensOsValor += Number(row.totalItensOsValor) || 0;
+      totalItensOsReemb += Number(row.totalItensOsReemb) || 0;
+      totalItensOsQtd += Number(row.qtdItensOs) || 0;
+      totalOsComItens += Number(row.qtdOsComItens) || 0;
+      totalItensTipos += Number(row.qtdTiposItensOs) || 0;
     }
 
     const totalVeiculos = displayRows.length;
     const mediaPassagens = totalVeiculos > 0 ? totalPassagens / totalVeiculos : 0;
     const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
+    const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
 
     const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
     const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
@@ -2728,6 +4007,11 @@ export default function AnaliseContrato() {
     const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
     const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
     const impactoSinistro = faturamentoTotal > 0 ? totalCustoLiqSin / faturamentoTotal : 0;
+    const custoLiqItensOs = totalItensOsValor - totalItensOsReemb;
+    const pctRecuperacaoItensOs = totalItensOsValor > 0 ? totalItensOsReemb / totalItensOsValor : 0;
+    const ticketMedioOsItens = totalOsComItens > 0 ? totalItensOsValor / totalOsComItens : 0;
+    const custoMedioItemOs = totalItensOsQtd > 0 ? totalItensOsValor / totalItensOsQtd : 0;
+    const impactoItensOs = faturamentoTotal > 0 ? totalItensOsValor / faturamentoTotal : 0;
 
     if (activeTab === 'previsto') {
       return [
@@ -2746,6 +4030,20 @@ export default function AnaliseContrato() {
         { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), sub: 'Bruto - Reembolsos', icon: DollarSign, color: 'text-indigo-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), sub: 'Reembolso / Custo Bruto', icon: Activity, color: 'text-blue-600' },
         { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
+      ];
+    }
+
+    if (activeTab === 'itensos') {
+      return [
+        { label: 'Custo Bruto Itens', value: fmtBRL(totalItensOsValor), sub: 'Soma de itens de OS', icon: Wrench, color: 'text-rose-600' },
+        { label: 'Reembolso Itens', value: fmtBRL(totalItensOsReemb), sub: 'Recuperado sobre itens', icon: ShieldAlert, color: 'text-emerald-600' },
+        { label: 'Custo Líquido Itens', value: fmtBRL(custoLiqItensOs), sub: 'Bruto - reembolsos', icon: DollarSign, color: 'text-indigo-600' },
+        { label: '% Recuperação', value: fmtPct(pctRecuperacaoItensOs), sub: 'Reembolso / custo bruto', icon: Activity, color: 'text-blue-600' },
+        { label: 'Ticket Médio por OS', value: fmtBRL(ticketMedioOsItens), sub: `${fmtNum(totalOsComItens)} OS com itens`, icon: Gauge, color: 'text-sky-600' },
+        { label: 'Custo Médio por Item', value: fmtBRL(custoMedioItemOs), sub: `${fmtNum(totalItensOsQtd)} itens somados`, icon: BarChart3, color: 'text-fuchsia-600' },
+        { label: 'Tipos de Itens', value: fmtNum(totalItensTipos), sub: 'Soma de variedades por placa', icon: Search, color: 'text-slate-700' },
+        { label: 'Impacto no Faturamento', value: fmtPct(impactoItensOs), sub: 'Custo bruto de itens / faturamento', icon: AlertTriangle, color: impactoItensOs > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Impacto acima do limite configurado', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -2786,12 +4084,936 @@ export default function AnaliseContrato() {
 
     return [
       { label: 'Passagens Realizadas', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
+      { label: 'Ocorrências Efetivas', value: fmtNum(totalOcorrenciasEfetivas), sub: `${fmtNum(totalOcorrenciasManutencao)} ocorrências totais`, icon: Route, color: 'text-emerald-600' },
+      { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), sub: `${fmtNum(totalOcorrenciasCanceladas)} canceladas`, icon: AlertTriangle, color: pctCancelamentoOcorrencias > 0.35 ? 'text-rose-600' : 'text-amber-600' },
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
       { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} ou % > ${fmtPct(passagemPctAlertThreshold)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
       { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Itens destacados em vermelho na aba atual', icon: ShieldAlert, color: 'text-red-600' },
       { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
     ];
   }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
+
+  const itensOsRankings = useMemo(() => {
+    const empty = {
+      totalRegistros: 0,
+      topItensCusto: [] as Array<{ label: string; valor: number; reemb: number; qtd: number; osQtd: number; placasQtd: number }>,
+      topItensReembolso: [] as Array<{ label: string; valor: number; reemb: number; qtd: number; osQtd: number; placasQtd: number }>,
+      topFornecedores: [] as Array<{ label: string; valor: number; reemb: number; qtd: number; osQtd: number; placasQtd: number }>,
+      topGruposDespesa: [] as Array<{ label: string; valor: number; reemb: number; qtd: number; osQtd: number; placasQtd: number }>,
+    };
+
+    if (activeTab !== 'itensos') return empty;
+
+    const arrItens = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    if (!arrItens.length || !displayRows.length) return empty;
+
+    const targetPlates = new Set(displayRows.map(r => normalizePlate(r.placa || '')).filter(Boolean));
+    const targetPlateKeys = new Set(displayRows.map(r => canonicalPlate(r.placa || '')).filter(Boolean));
+    const targetVeiculos = new Set(displayRows.map(r => String(r.idVeiculo || '').trim().toUpperCase()).filter(Boolean));
+    const targetLocacoes = new Set(displayRows.map(r => String(r.idLocacao || '').trim().toUpperCase()).filter(Boolean));
+    const targetComerciais = new Set(displayRows.map(r => String(r.idComercial || '').trim().toUpperCase()).filter(Boolean));
+
+    const contractStartByPlate = new Map<string, Date>();
+    const today = new Date();
+    for (const row of displayRows) {
+      const start = parseDateFlexible(row.dataInicial || '');
+      if (!start) continue;
+      const plateA = normalizePlate(row.placa || '');
+      const plateB = canonicalPlate(row.placa || '');
+      const pushStart = (key: string) => {
+        if (!key) return;
+        const prev = contractStartByPlate.get(key);
+        if (!prev || start.getTime() > prev.getTime()) contractStartByPlate.set(key, start);
+      };
+      pushStart(plateA);
+      pushStart(plateB);
+    }
+
+    type RankAgg = { label: string; valor: number; reemb: number; qtd: number; os: Set<string>; placas: Set<string> };
+    const byItem = new Map<string, RankAgg>();
+    const byFornecedor = new Map<string, RankAgg>();
+    const byGrupo = new Map<string, RankAgg>();
+    const seen = new Set<string>();
+
+    const upsert = (map: Map<string, RankAgg>, labelRaw: string, valor: number, reemb: number, qtd: number, osId: string, plate: string) => {
+      const label = (labelRaw || '').trim() || 'Não informado';
+      const key = label.toUpperCase();
+      let rec = map.get(key);
+      if (!rec) {
+        rec = { label, valor: 0, reemb: 0, qtd: 0, os: new Set<string>(), placas: new Set<string>() };
+        map.set(key, rec);
+      }
+      rec.valor += valor;
+      rec.reemb += reemb;
+      rec.qtd += qtd;
+      if (osId) rec.os.add(osId);
+      if (plate) rec.placas.add(plate);
+    };
+
+    let totalRegistros = 0;
+    for (const item of arrItens) {
+      const itemAny = item as any;
+
+      const rowPlate = normalizePlate(itemAny?.Placa || itemAny?.placa || '');
+      const rowPlateKey = canonicalPlate(itemAny?.Placa || itemAny?.placa || '');
+      const rowVeiculo = String(itemAny?.IdVeiculo || itemAny?.idveiculo || '').trim().toUpperCase();
+      const rowLocacao = String(itemAny?.IdContratoLocacao || itemAny?.idcontratolocacao || '').trim().toUpperCase();
+      const rowComercial = String(itemAny?.IdContratoComercial || itemAny?.idcontratocomercial || itemAny?.ContratoComercial || itemAny?.contratocomercial || '').trim().toUpperCase();
+
+      const matched =
+        (rowPlate && targetPlates.has(rowPlate))
+        || (rowPlateKey && targetPlateKeys.has(rowPlateKey))
+        || (rowVeiculo && targetVeiculos.has(rowVeiculo))
+        || (rowLocacao && targetLocacoes.has(rowLocacao))
+        || (rowComercial && targetComerciais.has(rowComercial));
+      if (!matched) continue;
+
+      const date = getItemOsDate(itemAny);
+      if (date && date > today) continue;
+      const contractStart = contractStartByPlate.get(rowPlate) || contractStartByPlate.get(rowPlateKey);
+      if (date && contractStart && date < contractStart) continue;
+
+      const idItem = String(itemAny?.IdItemOrdemServico || itemAny?.iditemordemservico || '').trim();
+      const osId = getMaintenanceOrderDisplay(itemAny);
+      const occurrence = getMaintenanceOccurrenceDisplay(itemAny);
+      const itemDescricao = getItemOsDescription(itemAny);
+      const valor = getItemOsCost(itemAny);
+      const reemb = getItemOsReembolso(itemAny);
+      const qtd = getItemOsQuantity(itemAny);
+      const uniqueKey = idItem || `${osId}|${occurrence}|${itemDescricao}|${String(date?.toISOString() || '')}|${valor}|${reemb}`;
+      if (!uniqueKey || seen.has(uniqueKey)) continue;
+      seen.add(uniqueKey);
+
+      totalRegistros += 1;
+      upsert(byItem, itemDescricao, valor, reemb, qtd, osId, rowPlateKey || rowPlate);
+      upsert(byFornecedor, getItemOsFornecedor(itemAny), valor, reemb, qtd, osId, rowPlateKey || rowPlate);
+      upsert(byGrupo, getItemOsGrupoDespesa(itemAny), valor, reemb, qtd, osId, rowPlateKey || rowPlate);
+    }
+
+    const toRanking = (map: Map<string, RankAgg>, sortBy: 'valor' | 'reemb') => {
+      return Array.from(map.values())
+        .sort((a, b) => {
+          const pri = sortBy === 'valor' ? b.valor - a.valor : b.reemb - a.reemb;
+          if (pri !== 0) return pri;
+          return b.qtd - a.qtd;
+        })
+        .map(item => ({
+          label: item.label,
+          valor: item.valor,
+          reemb: item.reemb,
+          qtd: item.qtd,
+          osQtd: item.os.size,
+          placasQtd: item.placas.size,
+        }));
+    };
+
+    return {
+      totalRegistros,
+      topItensCusto: toRanking(byItem, 'valor'),
+      topItensReembolso: toRanking(byItem, 'reemb'),
+      topFornecedores: toRanking(byFornecedor, 'valor'),
+      topGruposDespesa: toRanking(byGrupo, 'valor'),
+    };
+  }, [activeTab, displayRows, rawItensOS]);
+
+  const exportItensOsMiniTabelaExcel = (
+    title: string,
+    rows: Array<{ label: string; valor: number; reemb: number; qtd: number; osQtd: number; placasQtd: number }>
+  ) => {
+    const stamp = nowStamp();
+    const wb = XLSX.utils.book_new();
+    const slug = title
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'itens_os';
+
+    const totalValor = rows.reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+    const totalReemb = rows.reduce((acc, item) => acc + (Number(item.reemb) || 0), 0);
+    const totalQtd = rows.reduce((acc, item) => acc + (Number(item.qtd) || 0), 0);
+    const totalOs = rows.reduce((acc, item) => acc + (Number(item.osQtd) || 0), 0);
+    const totalPlacas = rows.reduce((acc, item) => acc + (Number(item.placasQtd) || 0), 0);
+
+    const payload = rows.map((item, idx) => ({
+      Posicao: idx + 1,
+      Categoria: item.label,
+      Custo: fmtBRLZero(item.valor),
+      Reembolso: fmtBRLZero(item.reemb),
+      '% Reembolso': fmtPct(item.valor > 0 ? item.reemb / item.valor : 0),
+      Quantidade: fmtNum(item.qtd),
+      'OS com Itens': fmtNum(item.osQtd),
+      Placas: fmtNum(item.placasQtd),
+    }));
+
+    payload.push({
+      Posicao: 'TOTAL',
+      Categoria: rows.length ? 'Total geral' : 'Sem dados',
+      Custo: fmtBRLZero(totalValor),
+      Reembolso: fmtBRLZero(totalReemb),
+      '% Reembolso': fmtPct(totalValor > 0 ? totalReemb / totalValor : 0),
+      Quantidade: fmtNum(totalQtd),
+      'OS com Itens': fmtNum(totalOs),
+      Placas: fmtNum(totalPlacas),
+    } as any);
+
+    const ws = XLSX.utils.json_to_sheet(payload);
+    ws['!cols'] = [
+      { wch: 10 },
+      { wch: 42 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 13 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 10 },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, slug.slice(0, 31) || 'itens_os');
+    XLSX.writeFile(wb, `analise_itens_os_${slug}_${stamp.fileStamp}.xlsx`);
+  };
+
+  const itensOsEstimativaRows = useMemo<ItemOsEstimativaRow[]>(() => {
+    if (activeTab !== 'itensos') return [];
+
+    const maintRows = rawM as ManutencaoRow[]|null ?? [];
+    if (!displayRows.length || !maintRows.length) return [];
+
+    const defaultIntervalByType: Record<EstimativaManutencaoTipo, number> = {
+      PREVENTIVA: 180,
+      CORRETIVA: 120,
+    };
+
+    const today = new Date();
+    const vehicleByPlate = new Map<string, VehicleRow>();
+    for (const vehicle of displayRows) {
+      const plateKey = canonicalPlate(vehicle.placa || '');
+      if (!plateKey) continue;
+      const current = vehicleByPlate.get(plateKey);
+      if (!current) {
+        vehicleByPlate.set(plateKey, vehicle);
+        continue;
+      }
+
+      const currentStart = parseDateFlexible(current.dataInicial || '')?.getTime() || 0;
+      const nextStart = parseDateFlexible(vehicle.dataInicial || '')?.getTime() || 0;
+      if (nextStart >= currentStart) vehicleByPlate.set(plateKey, vehicle);
+    }
+    if (!vehicleByPlate.size) return [];
+
+    type MaintEvent = { tipo: EstimativaManutencaoTipo; data: Date; custo: number };
+    const eventsByPlate = new Map<string, MaintEvent[]>();
+    const seenEvents = new Set<string>();
+
+    const pushEvent = (plateKey: string, event: MaintEvent) => {
+      const bucket = eventsByPlate.get(plateKey) || [];
+      bucket.push(event);
+      eventsByPlate.set(plateKey, bucket);
+    };
+
+    for (const row of maintRows) {
+      const rowAny = row as unknown as Record<string, unknown>;
+      const plateKey = canonicalPlate(rowAny?.Placa || rowAny?.placa || '');
+      if (!plateKey || !vehicleByPlate.has(plateKey)) continue;
+
+      const status = getMaintenanceStatusText(rowAny);
+      if (isCancelledStatus(status)) continue;
+
+      const date = getMaintenanceEventDate(rowAny);
+      if (!date || date > today) continue;
+
+      const vehicle = vehicleByPlate.get(plateKey);
+      const contractStart = parseDateFlexible(vehicle?.dataInicial || '');
+      if (contractStart && date < contractStart) continue;
+
+      const tipo = classifyMaintenanceEstimateType(rowAny);
+      if (!tipo) continue;
+
+      const occurrenceKey = getMaintenanceOccurrenceKey(rowAny, `${plateKey}-${date.toISOString().slice(0, 10)}`);
+      const dedupeKey = `${plateKey}|${tipo}|${occurrenceKey}|${date.toISOString().slice(0, 10)}`;
+      if (seenEvents.has(dedupeKey)) continue;
+      seenEvents.add(dedupeKey);
+
+      const custo = Math.max(0, parseNum(
+        rowAny.ValorTotalFatItens
+        || rowAny.ValorTotal
+        || rowAny.valortotal
+        || rowAny.CustoTotalOS
+        || rowAny.custo_total_os
+        || 0
+      ));
+
+      pushEvent(plateKey, { tipo, data: date, custo });
+    }
+
+    const globalCountByType: Record<EstimativaManutencaoTipo, number> = { PREVENTIVA: 0, CORRETIVA: 0 };
+    const globalCostsByType: Record<EstimativaManutencaoTipo, number[]> = { PREVENTIVA: [], CORRETIVA: [] };
+    const globalIntervalsByType: Record<EstimativaManutencaoTipo, number[]> = { PREVENTIVA: [], CORRETIVA: [] };
+    const cohortCostsByType = new Map<string, number[]>();
+    const cohortIntervalsByType = new Map<string, number[]>();
+
+    const getCohortKey = (modelo: string, tipo: EstimativaManutencaoTipo) => `${String(modelo || 'SEM_MODELO').trim().toUpperCase()}::${tipo}`;
+    const pushMapNumber = (map: Map<string, number[]>, key: string, values: number[]) => {
+      if (!values.length) return;
+      const bucket = map.get(key) || [];
+      bucket.push(...values);
+      map.set(key, bucket);
+    };
+
+    const getTypeIntervals = (events: MaintEvent[]) => {
+      const intervals: number[] = [];
+      for (let idx = 1; idx < events.length; idx += 1) {
+        const days = diffDays(events[idx].data, events[idx - 1].data);
+        if (days > 0) intervals.push(days);
+      }
+      return intervals;
+    };
+
+    for (const [plateKey, plateEventsRaw] of eventsByPlate.entries()) {
+      const vehicle = vehicleByPlate.get(plateKey);
+      if (!vehicle) continue;
+
+      const plateEvents = [...plateEventsRaw].sort((a, b) => a.data.getTime() - b.data.getTime());
+      const byType: Record<EstimativaManutencaoTipo, MaintEvent[]> = {
+        PREVENTIVA: plateEvents.filter(event => event.tipo === 'PREVENTIVA'),
+        CORRETIVA: plateEvents.filter(event => event.tipo === 'CORRETIVA'),
+      };
+
+      for (const tipo of ['PREVENTIVA', 'CORRETIVA'] as EstimativaManutencaoTipo[]) {
+        const typeEvents = byType[tipo];
+        globalCountByType[tipo] += typeEvents.length;
+
+        const costs = typeEvents.map(event => event.custo).filter(cost => cost > 0);
+        if (costs.length) globalCostsByType[tipo].push(...costs);
+
+        const intervals = getTypeIntervals(typeEvents);
+        if (intervals.length) globalIntervalsByType[tipo].push(...intervals);
+
+        const cohortKey = getCohortKey(vehicle.modelo, tipo);
+        pushMapNumber(cohortCostsByType, cohortKey, costs);
+        pushMapNumber(cohortIntervalsByType, cohortKey, intervals);
+      }
+    }
+
+    const globalTypedCount = globalCountByType.PREVENTIVA + globalCountByType.CORRETIVA;
+    const globalFreqByType: Record<EstimativaManutencaoTipo, number> = {
+      PREVENTIVA: globalTypedCount > 0 ? globalCountByType.PREVENTIVA / globalTypedCount : 0.5,
+      CORRETIVA: globalTypedCount > 0 ? globalCountByType.CORRETIVA / globalTypedCount : 0.5,
+    };
+
+    const resolveIntervalForType = (
+      tipo: EstimativaManutencaoTipo,
+      plateIntervals: number[],
+      modelo: string,
+    ) => {
+      if (plateIntervals.length) return Math.max(7, Math.round(quantile(plateIntervals, 0.5)));
+      const cohortIntervals = cohortIntervalsByType.get(getCohortKey(modelo, tipo)) || [];
+      if (cohortIntervals.length) return Math.max(7, Math.round(quantile(cohortIntervals, 0.5)));
+      if (globalIntervalsByType[tipo].length) return Math.max(7, Math.round(quantile(globalIntervalsByType[tipo], 0.5)));
+      return defaultIntervalByType[tipo];
+    };
+
+    const resolveCostsForType = (
+      tipo: EstimativaManutencaoTipo,
+      plateCosts: number[],
+      modelo: string,
+    ) => {
+      if (plateCosts.length >= 2) return { metodoCusto: 'PLACA' as const, values: plateCosts };
+
+      const cohortCosts = (cohortCostsByType.get(getCohortKey(modelo, tipo)) || []).filter(value => value > 0);
+      if (cohortCosts.length >= 3) return { metodoCusto: 'COORTE' as const, values: cohortCosts };
+
+      const globalCosts = globalCostsByType[tipo].filter(value => value > 0);
+      if (globalCosts.length) return { metodoCusto: 'GLOBAL' as const, values: globalCosts };
+
+      return { metodoCusto: 'GLOBAL' as const, values: [0] };
+    };
+
+    const rows: ItemOsEstimativaRow[] = [];
+    for (const vehicle of Array.from(vehicleByPlate.values()).sort((a, b) => String(a.placa || '').localeCompare(String(b.placa || ''), 'pt-BR'))) {
+      const plateKey = canonicalPlate(vehicle.placa || '');
+      const plateEvents = [...(eventsByPlate.get(plateKey) || [])].sort((a, b) => a.data.getTime() - b.data.getTime());
+      const totalEvents = plateEvents.length;
+      const lastEvent = totalEvents > 0 ? plateEvents[totalEvents - 1] : null;
+
+      const byType: Record<EstimativaManutencaoTipo, MaintEvent[]> = {
+        PREVENTIVA: plateEvents.filter(event => event.tipo === 'PREVENTIVA'),
+        CORRETIVA: plateEvents.filter(event => event.tipo === 'CORRETIVA'),
+      };
+      const intervalsByType: Record<EstimativaManutencaoTipo, number[]> = {
+        PREVENTIVA: getTypeIntervals(byType.PREVENTIVA),
+        CORRETIVA: getTypeIntervals(byType.CORRETIVA),
+      };
+
+      const scoreByType = { PREVENTIVA: 0, CORRETIVA: 0 };
+      for (const tipo of ['PREVENTIVA', 'CORRETIVA'] as EstimativaManutencaoTipo[]) {
+        const typeEvents = byType[tipo];
+        const count = typeEvents.length;
+        const interval = resolveIntervalForType(tipo, intervalsByType[tipo], vehicle.modelo);
+        const lastTypeEvent = count > 0 ? typeEvents[typeEvents.length - 1] : null;
+        const daysSinceType = lastTypeEvent ? Math.max(0, diffDays(today, lastTypeEvent.data)) : interval;
+        const freqPart = totalEvents > 0 ? count / totalEvents : globalFreqByType[tipo];
+        const urgencyPart = clamp(daysSinceType / Math.max(interval, 1), 0, 1.5);
+        const sparsePenalty = count === 0 ? 0.8 : 1;
+        scoreByType[tipo] = sparsePenalty * ((freqPart * 0.65) + (Math.min(urgencyPart, 1) * 0.35));
+      }
+
+      const proximoTipo: EstimativaManutencaoTipo = scoreByType.PREVENTIVA >= scoreByType.CORRETIVA ? 'PREVENTIVA' : 'CORRETIVA';
+      const scoreTotal = scoreByType.PREVENTIVA + scoreByType.CORRETIVA;
+      const probabilidade = scoreTotal > 0 ? scoreByType[proximoTipo] / scoreTotal : 0.5;
+
+      const selectedEvents = byType[proximoTipo];
+      const selectedIntervals = intervalsByType[proximoTipo];
+      const selectedInterval = resolveIntervalForType(proximoTipo, selectedIntervals, vehicle.modelo);
+      const lastSelectedEvent = selectedEvents.length > 0 ? selectedEvents[selectedEvents.length - 1] : lastEvent;
+      const proximaData = lastSelectedEvent ? addDays(lastSelectedEvent.data, selectedInterval) : addDays(today, selectedInterval);
+      const diasAteProximo = proximaData ? diffDays(proximaData, today) : Number.NaN;
+
+      const plateCosts = selectedEvents.map(event => event.custo).filter(cost => cost > 0);
+      const resolvedCosts = resolveCostsForType(proximoTipo, plateCosts, vehicle.modelo);
+      const custoEstimado = average(resolvedCosts.values);
+      const custoP25 = quantile(resolvedCosts.values, 0.25);
+      const custoP75 = quantile(resolvedCosts.values, 0.75);
+
+      const intervalAverage = average(selectedIntervals);
+      const cv = selectedIntervals.length > 1 && intervalAverage > 0 ? stdDev(selectedIntervals) / intervalAverage : 1;
+      const historyFactor = clamp(selectedEvents.length / 6, 0, 1);
+      const consistencyFactor = selectedIntervals.length > 1 ? clamp(1 - cv, 0, 1) : 0.35;
+      const sourceBoost = resolvedCosts.metodoCusto === 'PLACA' ? 0.2 : resolvedCosts.metodoCusto === 'COORTE' ? 0.1 : 0;
+      const confianca = clamp(0.25 + (historyFactor * 0.4) + (consistencyFactor * 0.25) + sourceBoost, 0.15, 0.97);
+
+      const alerta = totalEvents === 0
+        ? 'Sem histórico da placa'
+        : selectedEvents.length < 2
+          ? 'Histórico reduzido para o tipo previsto'
+          : diasAteProximo < 0
+            ? 'Possível atraso do próximo evento'
+            : probabilidade < 0.55
+              ? 'Probabilidade equilibrada entre tipos'
+              : 'Base histórica consistente';
+
+      rows.push({
+        placa: vehicle.placa,
+        modelo: vehicle.modelo,
+        grupo: vehicle.grupo,
+        kmAtual: Number(vehicle.kmAtual) || 0,
+        ultimoEventoTipo: lastEvent ? lastEvent.tipo : '—',
+        ultimoEventoData: lastEvent ? lastEvent.data : null,
+        diasSemEvento: lastEvent ? Math.max(0, diffDays(today, lastEvent.data)) : Number.NaN,
+        proximoTipo,
+        probabilidade,
+        proximaData,
+        diasAteProximo,
+        intervaloDias: selectedInterval,
+        custoEstimado,
+        custoP25,
+        custoP75,
+        eventosTipo: selectedEvents.length,
+        eventosTotais: totalEvents,
+        metodoCusto: resolvedCosts.metodoCusto,
+        confianca,
+        alerta,
+      });
+    }
+
+    return rows;
+  }, [activeTab, displayRows, rawM]);
+
+  const sortedItensOsEstimativaRows = useMemo(() => {
+    const rows = [...itensOsEstimativaRows];
+    const dir = estimativaSort.dir === 'asc' ? 1 : -1;
+
+    const getter = (row: ItemOsEstimativaRow, key: string) => {
+      if (key === 'placa') return String(row.placa || '').toUpperCase();
+      if (key === 'modelo') return String(row.modelo || '').toUpperCase();
+      if (key === 'grupo') return String(row.grupo || '').toUpperCase();
+      if (key === 'kmAtual') return Number(row.kmAtual) || 0;
+      if (key === 'ultimoEventoTipo') return String(row.ultimoEventoTipo || '');
+      if (key === 'ultimoEventoData') return row.ultimoEventoData?.getTime() || 0;
+      if (key === 'diasSemEvento') return Number(row.diasSemEvento) || 0;
+      if (key === 'proximoTipo') return String(row.proximoTipo || '');
+      if (key === 'probabilidade') return Number(row.probabilidade) || 0;
+      if (key === 'proximaData') return row.proximaData?.getTime() || 0;
+      if (key === 'diasAteProximo') return Number(row.diasAteProximo) || 0;
+      if (key === 'intervaloDias') return Number(row.intervaloDias) || 0;
+      if (key === 'custoEstimado') return Number(row.custoEstimado) || 0;
+      if (key === 'custoP25') return Number(row.custoP25) || 0;
+      if (key === 'custoP75') return Number(row.custoP75) || 0;
+      if (key === 'eventosTipo') return Number(row.eventosTipo) || 0;
+      if (key === 'eventosTotais') return Number(row.eventosTotais) || 0;
+      if (key === 'metodoCusto') return String(row.metodoCusto || '');
+      if (key === 'confianca') return Number(row.confianca) || 0;
+      if (key === 'alerta') return String(row.alerta || '');
+      return 0;
+    };
+
+    rows.sort((a, b) => {
+      const va = getter(a, estimativaSort.key);
+      const vb = getter(b, estimativaSort.key);
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * dir;
+    });
+
+    return rows;
+  }, [itensOsEstimativaRows, estimativaSort]);
+
+  const estimativaTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(sortedItensOsEstimativaRows.length / ESTIMATIVA_PAGE_SIZE)),
+    [sortedItensOsEstimativaRows.length, ESTIMATIVA_PAGE_SIZE]
+  );
+
+  useEffect(() => {
+    setEstimativaPage(prev => Math.min(prev, estimativaTotalPages));
+  }, [estimativaTotalPages]);
+
+  const pagedItensOsEstimativaRows = useMemo(() => {
+    const start = (estimativaPage - 1) * ESTIMATIVA_PAGE_SIZE;
+    return sortedItensOsEstimativaRows.slice(start, start + ESTIMATIVA_PAGE_SIZE);
+  }, [sortedItensOsEstimativaRows, estimativaPage, ESTIMATIVA_PAGE_SIZE]);
+
+  const itensOsEstimativaKpis = useMemo(() => {
+    const totalVeiculos = itensOsEstimativaRows.length;
+    const totalEstimado = itensOsEstimativaRows.reduce((acc, row) => acc + (Number(row.custoEstimado) || 0), 0);
+    const custoMedio = totalVeiculos > 0 ? totalEstimado / totalVeiculos : 0;
+    const mediaProbabilidade = totalVeiculos > 0
+      ? itensOsEstimativaRows.reduce((acc, row) => acc + (Number(row.probabilidade) || 0), 0) / totalVeiculos
+      : 0;
+    const baixaConfianca = itensOsEstimativaRows.filter(row => row.confianca < 0.45).length;
+    const eventosAtrasados = itensOsEstimativaRows.filter(row => Number.isFinite(row.diasAteProximo) && row.diasAteProximo < 0).length;
+
+    return [
+      { label: 'Veículos com Estimativa', value: fmtNum(totalVeiculos), sub: 'Placas analisadas no recorte atual', icon: BarChart3, color: 'text-indigo-600' },
+      { label: 'Custo Estimado Total', value: fmtBRL(totalEstimado), sub: 'Soma do próximo evento previsto por placa', icon: DollarSign, color: 'text-rose-600' },
+      { label: 'Custo Médio Previsto', value: fmtBRL(custoMedio), sub: 'Média de custo estimado por placa', icon: Gauge, color: 'text-blue-600' },
+      { label: 'Probabilidade Média', value: fmtPct(mediaProbabilidade), sub: 'Chance média do tipo previsto', icon: Target, color: 'text-emerald-600' },
+      { label: 'Baixa Confiança', value: fmtNum(baixaConfianca), sub: 'Placas com confiança < 45%', icon: AlertTriangle, color: baixaConfianca > 0 ? 'text-rose-600' : 'text-emerald-600' },
+      { label: 'Eventos em Atraso', value: fmtNum(eventosAtrasados), sub: 'Próxima data prevista já ultrapassada', icon: ShieldAlert, color: eventosAtrasados > 0 ? 'text-rose-600' : 'text-emerald-600' },
+    ];
+  }, [itensOsEstimativaRows]);
+
+  const itensOsStatusRows = useMemo<ItemOsStatusPlacaRow[]>(() => {
+    if (activeTab !== 'itensos') return [];
+
+    const defaultAlertRules = buildDefaultItemAlertRules()
+      .filter(rule => rule.enabled && Number(rule.intervaloKm) > 0)
+      .map(rule => ({
+        ...rule,
+        termos: sanitizeAlertRuleTerms(rule.termos || []),
+      }));
+
+    const sanitizeAlertRules = (rules: ItemTrocaAlertRuleConfig[]) => {
+      return rules
+        .filter(rule => rule.enabled && Number(rule.intervaloKm) > 0 && String(rule.label || '').trim())
+        .map(rule => ({
+          ...rule,
+          intervaloKm: Math.max(0, Math.round(Number(rule.intervaloKm) || 0)),
+          termos: sanitizeAlertRuleTerms(rule.termos.length ? rule.termos : buildTermsFromLabel(rule.label)),
+        }));
+    };
+
+    const vehicleByPlate = new Map<string, VehicleRow>();
+    const alertRulesByPlate = new Map<string, ItemTrocaAlertRuleConfig[]>();
+    for (const vehicle of displayRows) {
+      const plateKey = canonicalPlate(vehicle.placa || '');
+      if (!plateKey) continue;
+
+      const current = vehicleByPlate.get(plateKey);
+      const currentStart = parseDateFlexible(current?.dataInicial || '')?.getTime() || 0;
+      const nextStart = parseDateFlexible(vehicle.dataInicial || '')?.getTime() || 0;
+      const shouldReplace = !current || nextStart >= currentStart;
+      if (!shouldReplace) continue;
+
+      vehicleByPlate.set(plateKey, vehicle);
+
+      const rawRules = getEffectiveAlertRulesForVehicle(vehicle);
+      const activeRules = sanitizeAlertRules(rawRules);
+      alertRulesByPlate.set(plateKey, activeRules);
+    }
+    if (!vehicleByPlate.size) return [];
+
+    type RuleEvent = {
+      date: Date | null;
+      kmEvento: number;
+    };
+    type RuleEventsMap = Record<string, RuleEvent[]>;
+
+    const emptyRuleEvents = (rules: ItemTrocaAlertRuleConfig[]): RuleEventsMap => {
+      const map: RuleEventsMap = {};
+      for (const rule of rules) map[rule.id] = [];
+      return map;
+    };
+
+    const today = new Date();
+    const eventsByPlate = new Map<string, RuleEventsMap>();
+    const seenEvents = new Set<string>();
+
+    const kmPerDayForVehicle = (vehicle: VehicleRow) => {
+      const kmMes = Number(vehicle.rodagemMedia) || 0;
+      if (!Number.isFinite(kmMes) || kmMes <= 0) return Number.NaN;
+      return kmMes / 30.4375;
+    };
+
+    const estimateKmAtDate = (vehicle: VehicleRow, date: Date | null): number => {
+      if (!date) return Number.NaN;
+      const kmDia = kmPerDayForVehicle(vehicle);
+      if (!Number.isFinite(kmDia) || kmDia <= 0) return Number.NaN;
+
+      const kmAtual = Number(vehicle.kmAtual) || 0;
+      if (!Number.isFinite(kmAtual) || kmAtual <= 0) return Number.NaN;
+
+      const diasAtras = Math.max(0, diffDays(today, date));
+      const estimado = kmAtual - (diasAtras * kmDia);
+      if (!Number.isFinite(estimado) || estimado <= 0) return Number.NaN;
+      return Math.min(kmAtual, estimado);
+    };
+
+    for (const item of (rawItensOS as ItensOrdemServicoRow[] | null ?? [])) {
+      const itemAny = item as Record<string, unknown>;
+      const plateKey = canonicalPlate(itemAny?.Placa || itemAny?.placa || '');
+      if (!plateKey || !vehicleByPlate.has(plateKey)) continue;
+
+      const regrasPlaca = alertRulesByPlate.get(plateKey) || defaultAlertRules;
+      if (!regrasPlaca.length) continue;
+
+      const vehicle = vehicleByPlate.get(plateKey);
+      if (!vehicle) continue;
+
+      const date = getItemOsDate(itemAny);
+      const contractStart = parseDateFlexible(vehicle.dataInicial || '');
+      if (date) {
+        if (contractStart && date < contractStart) continue;
+        if (date > today) continue;
+      }
+
+      const descricao = getItemOsDescription(itemAny);
+      const normalizedDesc = normalizeAlertRuleText(descricao);
+      if (!normalizedDesc) continue;
+
+      const rawKm = getItemOsEventKm(itemAny);
+      const estimatedKm = estimateKmAtDate(vehicle, date);
+      const kmEvento = Number.isFinite(rawKm) ? rawKm : estimatedKm;
+
+      const itemId = String(itemAny?.IdItemOrdemServico || itemAny?.iditemordemservico || '').trim();
+      const osId = getMaintenanceOrderDisplay(itemAny);
+      const occ = getMaintenanceOccurrenceDisplay(itemAny);
+      const dateKey = date ? date.toISOString().slice(0, 10) : '';
+
+      for (const regra of regrasPlaca) {
+        if (!doesDescricaoMatchAlertRule(normalizedDesc, regra)) continue;
+
+        const dedupeKey = [
+          plateKey,
+          regra.id,
+          itemId || osId,
+          occ,
+          dateKey,
+          normalizedDesc,
+        ].join('|');
+        if (seenEvents.has(dedupeKey)) continue;
+        seenEvents.add(dedupeKey);
+
+        const ruleMap = eventsByPlate.get(plateKey) || emptyRuleEvents(regrasPlaca);
+        const bucket = ruleMap[regra.id] || [];
+        bucket.push({
+          date,
+          kmEvento,
+        });
+        ruleMap[regra.id] = bucket;
+        eventsByPlate.set(plateKey, ruleMap);
+      }
+    }
+
+    const fmtKm = (value: number) => Math.max(0, Math.round(value)).toLocaleString('pt-BR');
+    const rows: ItemOsStatusPlacaRow[] = [];
+
+    const sortedVehicles = [...vehicleByPlate.values()].sort((a, b) => String(a.placa || '').localeCompare(String(b.placa || ''), 'pt-BR', { numeric: true }));
+
+    for (const vehicle of sortedVehicles) {
+      const plateKey = canonicalPlate(vehicle.placa || '');
+      const regrasPlaca = alertRulesByPlate.get(plateKey) || defaultAlertRules;
+      const ruleMap = eventsByPlate.get(plateKey) || emptyRuleEvents(regrasPlaca);
+      const kmAtual = Number(vehicle.kmAtual) || 0;
+      const kmInicioContrato = Number(vehicle.odometroRetirada) || 0;
+      const kmDia = kmPerDayForVehicle(vehicle);
+
+      let riscoScore = 0;
+      const itensMonitorados = regrasPlaca.length;
+      let itensComTroca = 0;
+      let itensVencidos = 0;
+      let trocasPrecoces = 0;
+      let itensSemHistorico = 0;
+
+      let ultimaTroca: { label: string; date: Date | null } | null = null;
+      let proximoEvento: { label: string; kmPara: number; data: Date | null } | null = null;
+      const alertas: string[] = [];
+
+      for (const regra of regrasPlaca) {
+        const events = [...(ruleMap[regra.id] || [])]
+          .sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+
+        const lastEvent = events.length ? events[events.length - 1] : null;
+        const prevEvent = events.length > 1 ? events[events.length - 2] : null;
+
+        if (lastEvent) {
+          itensComTroca += 1;
+          if (!ultimaTroca || (lastEvent.date?.getTime() || 0) >= (ultimaTroca.date?.getTime() || 0)) {
+            ultimaTroca = { label: regra.label, date: lastEvent.date };
+          }
+        } else {
+          itensSemHistorico += 1;
+        }
+
+        let kmIntervaloTroca = Number.NaN;
+        if (lastEvent && prevEvent && Number.isFinite(lastEvent.kmEvento) && Number.isFinite(prevEvent.kmEvento)) {
+          const delta = lastEvent.kmEvento - prevEvent.kmEvento;
+          if (delta > 0) kmIntervaloTroca = delta;
+        } else if (lastEvent && Number.isFinite(lastEvent.kmEvento) && kmInicioContrato > 0 && lastEvent.kmEvento > kmInicioContrato) {
+          kmIntervaloTroca = lastEvent.kmEvento - kmInicioContrato;
+        }
+
+        if (Number.isFinite(kmIntervaloTroca)) {
+          if (kmIntervaloTroca < (regra.intervaloKm * 0.8)) {
+            trocasPrecoces += 1;
+            riscoScore += 1;
+            alertas.push(`${regra.label} com troca precoce (${fmtKm(kmIntervaloTroca)} km; referência ${fmtKm(regra.intervaloKm)} km)`);
+          }
+
+          if (kmIntervaloTroca > (regra.intervaloKm * 1.25)) {
+            riscoScore += 1;
+            alertas.push(`${regra.label} com histórico de troca tardia (${fmtKm(kmIntervaloTroca)} km)`);
+          }
+        }
+
+        let kmParaRegra = Number.NaN;
+        if (lastEvent && Number.isFinite(lastEvent.kmEvento)) {
+          kmParaRegra = regra.intervaloKm - Math.max(0, kmAtual - lastEvent.kmEvento);
+        } else if (kmInicioContrato > 0 && kmAtual > kmInicioContrato) {
+          kmParaRegra = regra.intervaloKm - Math.max(0, kmAtual - kmInicioContrato);
+        }
+
+        let dataProximaRegra: Date | null = null;
+        if (Number.isFinite(kmParaRegra) && Number.isFinite(kmDia) && kmDia > 0) {
+          dataProximaRegra = addDays(today, Math.round(kmParaRegra / kmDia));
+        }
+
+        if (Number.isFinite(kmParaRegra)) {
+          if (kmParaRegra <= 0) {
+            itensVencidos += 1;
+            riscoScore += 2;
+            alertas.push(`${regra.label} acima da vida útil em ${fmtKm(Math.abs(kmParaRegra))} km`);
+          } else if (kmParaRegra <= Math.max(2500, regra.intervaloKm * 0.1)) {
+            riscoScore += 1;
+            alertas.push(`${regra.label} próximo da troca (${fmtKm(kmParaRegra)} km)`);
+          }
+
+          if (!proximoEvento || kmParaRegra < proximoEvento.kmPara) {
+            proximoEvento = {
+              label: regra.label,
+              kmPara: kmParaRegra,
+              data: dataProximaRegra,
+            };
+          }
+        }
+      }
+
+      if (itensMonitorados === 0) {
+        alertas.push('Sem itens de alerta configurados para este contrato');
+      }
+
+      if (kmAtual >= 100000) {
+        riscoScore += 1;
+        alertas.push(`KM elevado (${kmAtual.toLocaleString('pt-BR')} km)`);
+      }
+
+      const riscoNivel: ItemOsStatusPlacaRow['riscoNivel'] = riscoScore >= 7
+        ? 'ALTO'
+        : riscoScore >= 3
+          ? 'MEDIO'
+          : 'BAIXO';
+
+      const uniqueAlerts = Array.from(new Set(alertas));
+      if (!uniqueAlerts.length) {
+        uniqueAlerts.push('Itens monitorados dentro da expectativa de vida útil em KM');
+      }
+
+      const ultimaRevisao = ultimaTroca
+        ? `${ultimaTroca.label}${ultimaTroca.date ? ` (${ultimaTroca.date.toLocaleDateString('pt-BR')})` : ''}`
+        : 'Sem troca mapeada para os itens monitorados';
+
+      const proximoEventoTexto = (() => {
+        if (!proximoEvento || !Number.isFinite(proximoEvento.kmPara)) return 'Sem base de KM para projeção';
+        if (proximoEvento.kmPara <= 0) {
+          return `${proximoEvento.label} acima da vida útil (${fmtKm(Math.abs(proximoEvento.kmPara))} km)`;
+        }
+        const dataTxt = proximoEvento.data ? ` (~${proximoEvento.data.toLocaleDateString('pt-BR')})` : '';
+        return `${proximoEvento.label} em ${fmtKm(proximoEvento.kmPara)} km${dataTxt}`;
+      })();
+
+      const diasAteProximo = proximoEvento?.data ? diffDays(proximoEvento.data, today) : Number.NaN;
+
+      rows.push({
+        placa: vehicle.placa,
+        modelo: vehicle.modelo,
+        kmAtual,
+        ultimaRevisao,
+        proximoEvento: proximoEventoTexto,
+        proximoItem: proximoEvento?.label || 'Sem projeção',
+        proximoEventoData: proximoEvento?.data || null,
+        diasAteProximo,
+        kmParaProxima: proximoEvento?.kmPara ?? Number.NaN,
+        itensMonitorados,
+        itensComTroca,
+        itensVencidos,
+        trocasPrecoces,
+        itensSemHistorico,
+        riscoNivel,
+        riscoScore,
+        alertaPrincipal: uniqueAlerts[0],
+        alertas: uniqueAlerts,
+      });
+    }
+
+    rows.sort((a, b) => {
+      if (b.riscoScore !== a.riscoScore) return b.riscoScore - a.riscoScore;
+      if (b.itensVencidos !== a.itensVencidos) return b.itensVencidos - a.itensVencidos;
+
+      const aKm = Number.isFinite(a.kmParaProxima) ? a.kmParaProxima : Number.MAX_SAFE_INTEGER;
+      const bKm = Number.isFinite(b.kmParaProxima) ? b.kmParaProxima : Number.MAX_SAFE_INTEGER;
+      if (aKm !== bKm) return aKm - bKm;
+
+      if (b.kmAtual !== a.kmAtual) return b.kmAtual - a.kmAtual;
+      return String(a.placa || '').localeCompare(String(b.placa || ''), 'pt-BR', { numeric: true });
+    });
+
+    return rows;
+  }, [activeTab, displayRows, rawItensOS, alertRulesByScope]);
+
+  const itensOsStatusKpis = useMemo(() => {
+    const total = itensOsStatusRows.length;
+    const mediaItensMonitorados = total > 0
+      ? itensOsStatusRows.reduce((acc, row) => acc + (Number(row.itensMonitorados) || 0), 0) / total
+      : 0;
+    const placasComItensVencidos = itensOsStatusRows.filter(row => row.itensVencidos > 0).length;
+    const trocasPrecoces = itensOsStatusRows.reduce((acc, row) => acc + row.trocasPrecoces, 0);
+    const proximasAte5k = itensOsStatusRows.filter(row => Number.isFinite(row.kmParaProxima) && row.kmParaProxima <= 5000).length;
+    const semHistorico = itensOsStatusRows.filter(row => row.itensSemHistorico > 0).length;
+    const altoRisco = itensOsStatusRows.filter(row => row.riscoNivel === 'ALTO').length;
+
+    return [
+      { label: 'Placas Monitoradas', value: fmtNum(total), sub: `Média ${mediaItensMonitorados.toFixed(1).replace('.', ',')} item(ns) por veículo`, icon: BarChart3, color: 'text-indigo-600' },
+      { label: 'Placas com Itens Vencidos', value: fmtNum(placasComItensVencidos), sub: 'Acima da vida útil em KM', icon: Gauge, color: placasComItensVencidos > 0 ? 'text-rose-600' : 'text-emerald-600' },
+      { label: 'Trocas Precoces', value: fmtNum(trocasPrecoces), sub: 'Troca antes de 80% da referência', icon: AlertTriangle, color: trocasPrecoces > 0 ? 'text-amber-600' : 'text-emerald-600' },
+      { label: 'Próxima Troca <= 5.000 KM', value: fmtNum(proximasAte5k), sub: 'Prioridade operacional imediata', icon: Target, color: proximasAte5k > 0 ? 'text-amber-600' : 'text-emerald-600' },
+      { label: 'Risco Alto', value: fmtNum(altoRisco), sub: 'Concentração de alertas críticos', icon: ShieldAlert, color: altoRisco > 0 ? 'text-rose-600' : 'text-emerald-600' },
+      { label: 'Sem Histórico de Troca', value: fmtNum(semHistorico), sub: 'Sem base completa para todos os itens', icon: ShieldAlert, color: semHistorico > 0 ? 'text-slate-600' : 'text-emerald-600' },
+    ];
+  }, [itensOsStatusRows]);
+
+  const exportItensOsStatusExcel = (rows: ItemOsStatusPlacaRow[]) => {
+    const stamp = nowStamp();
+    const wb = XLSX.utils.book_new();
+
+    const payload = rows.map((row) => ({
+      Placa: row.placa || '—',
+      Modelo: row.modelo || '—',
+      'KM Atual': fmtNum(row.kmAtual),
+      'Última Revisão': row.ultimaRevisao,
+      'Próximo Evento Previsto': row.proximoEvento,
+      'Próximo Item': row.proximoItem,
+      'KM para Próxima Troca': Number.isFinite(row.kmParaProxima) ? Math.max(0, Math.round(row.kmParaProxima)).toLocaleString('pt-BR') : '—',
+      'Data Próximo Evento': row.proximoEventoData ? row.proximoEventoData.toLocaleDateString('pt-BR') : '—',
+      'Dias para Próximo Evento': Number.isFinite(row.diasAteProximo) ? fmtNum(row.diasAteProximo) : '—',
+      'Itens Monitorados': row.itensMonitorados.toLocaleString('pt-BR'),
+      'Itens com Troca Registrada': row.itensComTroca.toLocaleString('pt-BR'),
+      'Itens Vencidos': row.itensVencidos.toLocaleString('pt-BR'),
+      'Trocas Precoces': row.trocasPrecoces.toLocaleString('pt-BR'),
+      'Itens sem Histórico': row.itensSemHistorico.toLocaleString('pt-BR'),
+      'Nível de Risco': row.riscoNivel,
+      'Score de Risco': row.riscoScore.toLocaleString('pt-BR'),
+      'Alerta Principal': row.alertaPrincipal,
+      'Alertas Pendentes': row.alertas.join(' | '),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(payload);
+    ws['!cols'] = [
+      { wch: 10 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 26 },
+      { wch: 28 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 15 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 34 },
+      { wch: 56 },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'status_placa_itens_os');
+    XLSX.writeFile(wb, `analise_itens_os_status_placa_${stamp.fileStamp}.xlsx`);
+  };
+
+  const exportItensOsEstimativaExcel = (rows: ItemOsEstimativaRow[]) => {
+    const stamp = nowStamp();
+    const wb = XLSX.utils.book_new();
+
+    const payload = rows.map((row) => ({
+      Placa: row.placa || '—',
+      Modelo: row.modelo || '—',
+      Grupo: row.grupo || '—',
+      'KM Atual': fmtNum(row.kmAtual),
+      'Último Tipo': row.ultimoEventoTipo,
+      'Último Evento': row.ultimoEventoData ? row.ultimoEventoData.toLocaleDateString('pt-BR') : '—',
+      'Dias sem Evento': Number.isFinite(row.diasSemEvento) ? fmtNum(row.diasSemEvento) : '—',
+      'Próximo Tipo': row.proximoTipo,
+      Probabilidade: fmtPct(row.probabilidade),
+      'Próxima Data': row.proximaData ? row.proximaData.toLocaleDateString('pt-BR') : '—',
+      'Dias para Próximo': Number.isFinite(row.diasAteProximo) ? fmtNum(row.diasAteProximo) : '—',
+      'Intervalo Médio (dias)': fmtNum(row.intervaloDias),
+      'Custo Estimado': fmtBRLZero(row.custoEstimado),
+      'Faixa P25': fmtBRLZero(row.custoP25),
+      'Faixa P75': fmtBRLZero(row.custoP75),
+      'Eventos do Tipo': fmtNum(row.eventosTipo),
+      'Eventos Totais': fmtNum(row.eventosTotais),
+      'Método Custo': row.metodoCusto,
+      Confiança: fmtPct(row.confianca),
+      Alerta: row.alerta,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(payload);
+    ws['!cols'] = [
+      { wch: 10 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 13 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 15 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 13 },
+      { wch: 10 },
+      { wch: 42 },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'estimativa_itens_os');
+    XLSX.writeFile(wb, `analise_itens_os_estimativa_${stamp.fileStamp}.xlsx`);
+  };
 
   const getTabColsForTab = (tab: TabKey, years: number[], includeYearDetail = true) => {
     const cols: ColDef[] = [];
@@ -2841,6 +5063,18 @@ export default function AnaliseContrato() {
       cols.push({ key:'custoLiqMan',    label:'Custo Líq Man',fmt:r=>fmtBRL(r.custoLiqMan),   align:'right', w:120, sortGetter: r=>r.custoLiqMan });
       cols.push({ key:'pctReembolsadoMan',label:'% Reemb Man',fmt:r=>fmtPct(r.pctReembolsadoMan), align:'right', w:90, sortGetter: r=>r.pctReembolsadoMan });
       cols.push({ key:'custoKmLiqMan',  label:'Custo KM Líq', fmt:r=>fmtKM2(r.custoKmLiqMan),  align:'right', w:100, sortGetter: r=>r.custoKmLiqMan });
+    } else if (tab === 'itensos') {
+      cols.push({ key:'qtdOsComItens', label:'OS com Itens', fmt:r=>fmtNum(r.qtdOsComItens), align:'right', w:95, sortGetter: r=>r.qtdOsComItens });
+      cols.push({ key:'qtdItensOs', label:'Qtd Itens', fmt:r=>fmtNum(r.qtdItensOs), align:'right', w:90, sortGetter: r=>r.qtdItensOs });
+      cols.push({ key:'qtdTiposItensOs', label:'Tipos de Itens', fmt:r=>fmtNum(r.qtdTiposItensOs), align:'right', w:100, sortGetter: r=>r.qtdTiposItensOs });
+      cols.push({ key:'totalItensOsValor', label:'Custo Bruto Itens', fmt:r=>fmtBRL(r.totalItensOsValor), cls:r=>clrV(r.totalItensOsValor, false), align:'right', w:130, sortGetter: r=>r.totalItensOsValor });
+      cols.push({ key:'totalItensOsReemb', label:'Reembolso Itens', fmt:r=>fmtBRLZero(r.totalItensOsReemb), align:'right', w:130, sortGetter: r=>r.totalItensOsReemb });
+      cols.push({ key:'custoLiqItensOs', label:'Custo Líq. Itens', fmt:r=>fmtBRLZero(r.custoLiqItensOs), cls:r=>clrV(r.custoLiqItensOs, false), align:'right', w:125, sortGetter: r=>r.custoLiqItensOs });
+      cols.push({ key:'pctRecuperacaoItensOs', label:'% Recuperação', fmt:r=>fmtPct(r.pctRecuperacaoItensOs), align:'right', w:100, sortGetter: r=>r.pctRecuperacaoItensOs });
+      cols.push({ key:'ticketMedioOsComItens', label:'Ticket por OS', fmt:r=>fmtBRL(r.ticketMedioOsComItens), align:'right', w:120, sortGetter: r=>r.ticketMedioOsComItens });
+      cols.push({ key:'custoMedioItemOs', label:'Custo Médio Item', fmt:r=>fmtBRL(r.custoMedioItemOs), align:'right', w:120, sortGetter: r=>r.custoMedioItemOs });
+      cols.push({ key:'faturamentoTotal', label:'Faturamento', fmt:r=>fmtBRL(r.faturamentoTotal), align:'right', w:125, sortGetter: r=>r.faturamentoTotal });
+      cols.push({ key:'pctItensOsFat', label:'% Itens/Fat', fmt:r=>fmtPct(r.pctItensOsFat), cls:r=>clrPctThreshold(r.pctItensOsFat, fatPctAlertThreshold), align:'right', w:100, sortGetter: r=>r.pctItensOsFat });
     } else if (tab === 'sinistro') {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`sin_${y}`, label:`Sin ${y}`, fmt:r=>fmtBRL(r.years[y].sin), cls:r=>clrV(r.years[y].sin, false), align:'right', w:110, sortGetter: r=>r.years[y].sin }));
       cols.push({ key:'totalSinistro',   label:'Total Sin',     fmt:r=>fmtBRL(r.totalSinistro),   cls:r=>clrV(r.totalSinistro, false), align:'right', w:110, sortGetter: r=>r.totalSinistro });
@@ -2911,7 +5145,7 @@ export default function AnaliseContrato() {
     return cols;
   };
 
-  const tabHasYearDetail = (tab: TabKey) => tab !== 'previsto' && tab !== 'resumo' && tab !== 'listagemCto';
+  const tabHasYearDetail = (tab: TabKey) => tab !== 'previsto' && tab !== 'itensos' && tab !== 'resumo' && tab !== 'listagemCto';
 
   // Build dynamic columns
   const tabCols = useMemo(
@@ -3255,6 +5489,7 @@ export default function AnaliseContrato() {
       'bg-blue-700': '#1d4ed8',
       'bg-amber-700': '#b45309',
       'bg-orange-700': '#c2410c',
+      'bg-emerald-700': '#047857',
       'bg-red-700': '#b91c1c',
       'bg-purple-700': '#7e22ce',
       'bg-teal-700': '#0f766e',
@@ -3265,6 +5500,9 @@ export default function AnaliseContrato() {
       let totalPassagemPrevista = 0;
       let veiculosCriticos = 0;
       let somaRodagemMedia = 0;
+      let totalOcorrenciasManutencao = 0;
+      let totalOcorrenciasEfetivas = 0;
+      let totalOcorrenciasCanceladas = 0;
       let totalPrevisto = 0;
       let totalRealizado = 0;
       let totalDifPrevReal = 0;
@@ -3278,11 +5516,19 @@ export default function AnaliseContrato() {
       let totalReembManSin = 0;
       let totalEventosManSin = 0;
       let faturamentoTotal = 0;
+      let totalItensOsValor = 0;
+      let totalItensOsReemb = 0;
+      let totalItensOsQtd = 0;
+      let totalOsComItens = 0;
+      let totalItensTipos = 0;
 
       for (const row of displayRows) {
         totalPassagens += Number(row.passagemTotal) || 0;
         totalPassagemPrevista += Number(row.passagemIdeal) || 0;
         somaRodagemMedia += Number(row.rodagemMedia) || 0;
+        totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
+        totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
+        totalOcorrenciasCanceladas += Number(row.qtdOcorrenciasCanceladas) || 0;
         if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticos++;
 
         totalPrevisto += Number(row.custoManPrevisto) || 0;
@@ -3302,11 +5548,17 @@ export default function AnaliseContrato() {
         totalEventosManSin += (Number(row.qtdOsManutencao) || 0) + (Number(row.qtdSinistros) || 0);
 
         faturamentoTotal += Number(row.faturamentoTotal) || 0;
+        totalItensOsValor += Number(row.totalItensOsValor) || 0;
+        totalItensOsReemb += Number(row.totalItensOsReemb) || 0;
+        totalItensOsQtd += Number(row.qtdItensOs) || 0;
+        totalOsComItens += Number(row.qtdOsComItens) || 0;
+        totalItensTipos += Number(row.qtdTiposItensOs) || 0;
       }
 
       const totalVeiculos = displayRows.length;
       const pctCriticos = totalVeiculos > 0 ? veiculosCriticos / totalVeiculos : 0;
       const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
+      const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
       const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
       const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
       const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
@@ -3315,6 +5567,11 @@ export default function AnaliseContrato() {
       const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
       const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
       const impactoSinistro = faturamentoTotal > 0 ? totalCustoLiqSin / faturamentoTotal : 0;
+      const custoLiqItensOs = totalItensOsValor - totalItensOsReemb;
+      const pctRecuperacaoItensOs = totalItensOsValor > 0 ? totalItensOsReemb / totalItensOsValor : 0;
+      const ticketMedioOsItens = totalOsComItens > 0 ? totalItensOsValor / totalOsComItens : 0;
+      const custoMedioItemOs = totalItensOsQtd > 0 ? totalItensOsValor / totalItensOsQtd : 0;
+      const impactoItensOs = faturamentoTotal > 0 ? totalItensOsValor / faturamentoTotal : 0;
 
       if (tab === 'previsto') {
         return [
@@ -3331,6 +5588,19 @@ export default function AnaliseContrato() {
           { label: 'Reembolsado', value: fmtBRL(totalReembMan), cls: 'text-emerald-600' },
           { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), cls: 'text-red-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), cls: 'text-blue-600' },
+          { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+        ];
+      }
+      if (tab === 'itensos') {
+        return [
+          { label: 'Custo Bruto Itens', value: fmtBRL(totalItensOsValor), cls: 'text-red-600' },
+          { label: 'Reembolso Itens', value: fmtBRL(totalItensOsReemb), cls: 'text-emerald-600' },
+          { label: 'Custo Líq. Itens', value: fmtBRL(custoLiqItensOs), cls: 'text-red-600' },
+          { label: '% Recuperação', value: fmtPct(pctRecuperacaoItensOs), cls: 'text-blue-600' },
+          { label: 'Ticket por OS', value: fmtBRL(ticketMedioOsItens), cls: 'text-indigo-600' },
+          { label: 'Custo Médio Item', value: fmtBRL(custoMedioItemOs), cls: 'text-purple-600' },
+          { label: 'Tipos de Itens', value: fmtNum(totalItensTipos), cls: 'text-slate-700' },
+          { label: 'Impacto Itens/Fat', value: fmtPct(impactoItensOs), cls: impactoItensOs > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
           { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
@@ -3363,6 +5633,8 @@ export default function AnaliseContrato() {
       }
       return [
         { label: 'Passagens', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
+        { label: 'Ocorrências Efetivas', value: fmtNum(totalOcorrenciasEfetivas), cls: 'text-emerald-600' },
+        { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), cls: pctCancelamentoOcorrencias > 0.35 ? 'text-red-600' : 'text-amber-600' },
         { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
         { label: 'Críticos', value: `${fmtNum(veiculosCriticos)} (${fmtPct(pctCriticos)})`, cls: 'text-red-600' },
         { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
@@ -3373,6 +5645,9 @@ export default function AnaliseContrato() {
     const getPrintParametersForTab = (tab: TabKey) => {
       if (tab === 'passagem') {
         return `Alerta de diferença: ${fmtNum(passagemDiffAlertThreshold)} passagens | Alerta percentual: ${fmtPct(passagemPctAlertThreshold)}`;
+      }
+      if (tab === 'itensos') {
+        return `Alerta de impacto itens/faturamento: ${fmtPct(fatPctAlertThreshold)}`;
       }
       if (tab === 'faturamento') {
         return `Alerta de faturamento: ${fmtPct(fatPctAlertThreshold)}`;
@@ -3536,7 +5811,7 @@ export default function AnaliseContrato() {
 
   const tabHelp: Record<TabKey, string[]> = {
     passagem: [
-      'Passagem Total: soma das ocorrências de manutenção por veículo.',
+      'Passagem Total: soma das ocorrências de manutenção não canceladas por veículo.',
       'Passagem Prevista: KM atual dividido pelo divisor configurado.',
       'Críticos: veículos com diferença positiva entre real e previsto.',
       'Rodagem Média: média mensal baseada em KM atual e idade do veículo.'
@@ -3549,6 +5824,14 @@ export default function AnaliseContrato() {
     manutencao: [
       'Mostra custos de manutenção, reembolsos e custo líquido.',
       'Custo/KM considera a quilometragem atual do veículo.'
+    ],
+    itensos: [
+      'Consolida itens de ordem de serviço por placa, contrato e vínculo de veículo.',
+      'Custo Bruto Itens: soma dos valores dos itens de OS no período.',
+      'Custo Líquido Itens = Custo Bruto Itens - Reembolso de Itens.',
+      'Ticket por OS = Custo Bruto Itens / quantidade de OS com itens.',
+      '% Itens/Fat = Custo Bruto de Itens / Faturamento do veículo.',
+      'Na subaba Status por Placa, os itens monitorados e a KM de troca podem ser ajustados em Configurar Regras por Contrato.'
     ],
     sinistro: [
       'Consolida custos de sinistro e reembolsos (seguradora/terceiro).',
@@ -3747,7 +6030,7 @@ export default function AnaliseContrato() {
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">Gerenciador de Regras Comerciais</h3>
-                  <p className="text-xs text-slate-500">Configuração manual de custo por contrato e grupo.</p>
+                  <p className="text-xs text-slate-500">Configuração manual de custo por contrato/grupo e itens de alerta de troca por KM.</p>
                 </div>
                 <button type="button" onClick={()=>setShowRulesManager(false)} className="h-9 w-9 rounded-full border border-slate-300 text-slate-500 hover:text-slate-800 hover:border-slate-400 flex items-center justify-center">
                   <X className="w-4 h-4" />
@@ -3852,6 +6135,211 @@ export default function AnaliseContrato() {
                       </button>
                     </div>
                   </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60 space-y-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Alertas de Troca por KM (Status por Placa)</div>
+                    <p className="text-xs text-slate-500 mt-0.5">Aqui você define os itens monitorados por Grupo + Modelo, com opção de aplicar as mesmas regras para toda a frota.</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="alert-rule-apply-all"
+                      type="checkbox"
+                      checked={alertRuleApplyAll}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAlertRuleApplyAll(checked);
+                        if (checked) {
+                          setAlertRuleGrupo('');
+                          setAlertRuleModelo('');
+                        }
+                        resetAlertRuleEditor();
+                        setAlertRulesError(null);
+                      }}
+                      className="rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                    />
+                    <label htmlFor="alert-rule-apply-all" className="text-xs font-medium text-slate-700">Aplicar a todos (todos os grupos e modelos)</label>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+                    <div className="lg:col-span-3">
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Grupo</label>
+                      <SearchableSelect
+                        options={allGrupos}
+                        value={alertRuleGrupo ? [alertRuleGrupo] : []}
+                        onChange={v=>{
+                          setAlertRuleGrupo(v[0] || '');
+                          setAlertRuleModelo('');
+                          resetAlertRuleEditor();
+                          setAlertRulesError(null);
+                        }}
+                        placeholder="Selecione o grupo"
+                        allLabel="Selecione o grupo"
+                        multiple={false}
+                      />
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Modelo</label>
+                      <SearchableSelect
+                        options={modelOptionsForAlertRule}
+                        value={alertRuleModelo ? [alertRuleModelo] : []}
+                        onChange={v=>{ setAlertRuleModelo(v[0] || ''); resetAlertRuleEditor(); setAlertRulesError(null); }}
+                        placeholder="Selecione o modelo"
+                        allLabel="Selecione o modelo"
+                        multiple={false}
+                      />
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Item de alerta</label>
+                      <input
+                        type="text"
+                        placeholder="Ex.: Amortecedor"
+                        value={alertRuleLabel}
+                        onChange={e=>setAlertRuleLabel(e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-2">
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">KM estimada de troca</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="40000"
+                        value={alertRuleKm}
+                        onChange={e=>setAlertRuleKm(e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Termos de busca (opcional)</label>
+                      <input
+                        type="text"
+                        placeholder="Ex.: amortecedor, kit amortecedor"
+                        value={alertRuleTerms}
+                        onChange={e=>setAlertRuleTerms(e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-1">
+                      <button
+                        type="button"
+                        onClick={upsertAlertRule}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-medium hover:bg-slate-800 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {editingAlertRuleId ? 'Atualizar' : 'Adicionar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {!alertRuleApplyAll && (
+                    <p className="text-[11px] text-slate-500">Dica: selecione primeiro o grupo para carregar os modelos disponíveis.</p>
+                  )}
+
+                  {editingAlertRuleId && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={resetAlertRuleEditor}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Cancelar edição do item
+                      </button>
+                    </div>
+                  )}
+
+                  {alertRulesError && (
+                    <p className="text-xs text-rose-600">{alertRulesError}</p>
+                  )}
+
+                  {!alertRuleScopeKey && (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-500">
+                      Selecione Grupo e Modelo ou marque "Aplicar a todos" para configurar os itens monitorados.
+                    </div>
+                  )}
+
+                  {alertRuleScopeKey && (
+                    <>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-xs text-slate-600">
+                          {alertRulesSelectedScopeUsesCustomConfig
+                            ? (alertRuleScopeKey === ALERT_RULE_SCOPE_ALL
+                              ? 'Configuração personalizada para toda a frota.'
+                              : `Configuração personalizada para ${alertRuleGrupo} / ${alertRuleModelo}.`)
+                            : (alertRuleScopeKey === ALERT_RULE_SCOPE_ALL
+                              ? 'Usando regras padrão para toda a frota.'
+                              : `Usando regras padrão para ${alertRuleGrupo} / ${alertRuleModelo}.`)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => restoreDefaultAlertRulesForScope(alertRuleScopeKey)}
+                          disabled={!alertRulesSelectedScopeUsesCustomConfig}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Restaurar padrão
+                        </button>
+                      </div>
+
+                      <div className="overflow-auto max-h-[32vh] rounded-lg border border-slate-200 bg-white">
+                        <table className="min-w-full text-xs">
+                          <thead className="sticky top-0 bg-slate-100 text-slate-600">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-semibold">Item</th>
+                              <th className="text-right px-3 py-2 font-semibold">KM troca</th>
+                              <th className="text-left px-3 py-2 font-semibold">Termos de busca</th>
+                              <th className="text-center px-3 py-2 font-semibold">Origem</th>
+                              <th className="text-right px-3 py-2 font-semibold">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...alertRulesForSelectedScope]
+                              .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric: true }))
+                              .map((rule) => (
+                                <tr key={`${alertRuleScopeKey}-${rule.id}`} className="border-t border-slate-100 hover:bg-slate-50">
+                                  <td className="px-3 py-2 text-slate-700">{rule.label}</td>
+                                  <td className="px-3 py-2 text-right text-slate-900 font-medium">{Math.round(rule.intervaloKm).toLocaleString('pt-BR')}</td>
+                                  <td className="px-3 py-2 text-slate-600 max-w-[420px] truncate" title={(rule.termos || []).join(', ')}>{(rule.termos || []).join(', ') || '—'}</td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${rule.source === 'default' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}>
+                                      {rule.source === 'default' ? 'Padrão' : 'Custom'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditAlertRule(alertRuleScopeKey, rule)}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 mr-2"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteAlertRule(alertRuleScopeKey, rule.id)}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />Retirar
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+
+                            {alertRulesForSelectedScope.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-3 py-6 text-center text-slate-400">Sem itens configurados para este escopo.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
@@ -4788,8 +7276,40 @@ export default function AnaliseContrato() {
 
         {activeTab !== 'resumo' && activeTab !== 'listagemCto' && (
           <>
+            {activeTab === 'itensos' && (
+              <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setActiveItemsSubTab('resumo')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${activeItemsSubTab === 'resumo' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  Resumo de Itens
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveItemsSubTab('status')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${activeItemsSubTab === 'status' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  Status por Placa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveItemsSubTab('estimativa')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${activeItemsSubTab === 'estimativa' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  Estimativa de Manutenção
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
-              {tabKpis.map((card) => {
+              {(
+                activeTab === 'itensos' && activeItemsSubTab === 'estimativa'
+                  ? itensOsEstimativaKpis
+                  : activeTab === 'itensos' && activeItemsSubTab === 'status'
+                    ? itensOsStatusKpis
+                    : tabKpis
+              ).map((card) => {
                 const Icon = card.icon;
                 return (
                   <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative overflow-hidden min-w-0">
@@ -4804,7 +7324,304 @@ export default function AnaliseContrato() {
               })}
             </div>
 
+            {activeTab === 'itensos' && activeItemsSubTab === 'resumo' && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-4">
+                {[
+                  { title: 'Itens por Custo', firstCol: 'Item', data: itensOsRankings.topItensCusto, accent: 'text-rose-700' },
+                  { title: 'Itens por Reembolso', firstCol: 'Item', data: itensOsRankings.topItensReembolso, accent: 'text-emerald-700' },
+                  { title: 'Fornecedores por Custo', firstCol: 'Fornecedor', data: itensOsRankings.topFornecedores, accent: 'text-indigo-700' },
+                  { title: 'Grupos de Despesa', firstCol: 'Grupo', data: itensOsRankings.topGruposDespesa, accent: 'text-slate-700' },
+                ].map((block) => {
+                  // obter estado de ordenação por bloco (default por custo desc)
+                  const sortState = miniTableSortMap[block.title] || { key: 'valor', dir: 'desc' };
+                  const sortedData = [...block.data].sort((a, b) => {
+                    const dir = sortState.dir === 'asc' ? 1 : -1;
+                    const getter = (it: any, k: string) => {
+                      if (k === 'label') return String(it.label || '').toLowerCase();
+                      if (k === 'valor') return Number(it.valor) || 0;
+                      if (k === 'reemb') return Number(it.reemb) || 0;
+                      if (k === 'qtd') return Number(it.qtd) || 0;
+                      if (k === 'osQtd') return Number(it.osQtd) || 0;
+                      if (k === 'placasQtd') return Number(it.placasQtd) || 0;
+                      if (k === 'pct') return (Number(it.valor) || 0) > 0 ? (Number(it.reemb) || 0) / (Number(it.valor) || 0) : 0;
+                      return 0;
+                    };
+                    const va = getter(a, sortState.key);
+                    const vb = getter(b, sortState.key);
+                    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+                    return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * dir;
+                  });
+
+                  const totalValor = sortedData.reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+                  const totalReemb = sortedData.reduce((acc, item) => acc + (Number(item.reemb) || 0), 0);
+                  const totalQtd = sortedData.reduce((acc, item) => acc + (Number(item.qtd) || 0), 0);
+                  const totalOs = sortedData.reduce((acc, item) => acc + (Number(item.osQtd) || 0), 0);
+                  const totalPct = totalValor > 0 ? totalReemb / totalValor : 0;
+
+                  return (
+                    <div key={block.title} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                      <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                        <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{block.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-500">{fmtNum(sortedData.length)} registro(s)</span>
+                          <button
+                            type="button"
+                            onClick={() => exportItensOsMiniTabelaExcel(block.title, sortedData)}
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-slate-300 bg-white text-slate-500 hover:text-emerald-700 hover:border-emerald-300"
+                            title={`Exportar ${block.title} para Excel`}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="overflow-auto max-h-[320px]">
+                        <table className="min-w-full text-xs">
+                          <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
+                            <tr>
+                              <th className="text-left px-3 py-1.5"><button type="button" onClick={() => toggleMiniTableSort(block.title, 'label')} className="flex items-center gap-1 hover:text-slate-900">{block.firstCol}{miniTableSortIcon(block.title, 'label')}</button></th>
+                              <th className="text-right px-3 py-1.5"><button type="button" onClick={() => toggleMiniTableSort(block.title, 'valor')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo{miniTableSortIcon(block.title, 'valor')}</button></th>
+                              <th className="text-right px-3 py-1.5"><button type="button" onClick={() => toggleMiniTableSort(block.title, 'reemb')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reembolso{miniTableSortIcon(block.title, 'reemb')}</button></th>
+                              <th className="text-right px-3 py-1.5"><button type="button" onClick={() => toggleMiniTableSort(block.title, 'pct')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reemb.{miniTableSortIcon(block.title, 'pct')}</button></th>
+                              <th className="text-right px-3 py-1.5"><button type="button" onClick={() => toggleMiniTableSort(block.title, 'qtd')} className="flex items-center gap-1 justify-end hover:text-slate-900">Qtd{miniTableSortIcon(block.title, 'qtd')}</button></th>
+                              <th className="text-right px-3 py-1.5"><button type="button" onClick={() => toggleMiniTableSort(block.title, 'osQtd')} className="flex items-center gap-1 justify-end hover:text-slate-900">OS{miniTableSortIcon(block.title, 'osQtd')}</button></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedData.length === 0 && (
+                              <tr>
+                                <td colSpan={6} className="px-3 py-5 text-center text-slate-400">Sem dados para o recorte atual.</td>
+                              </tr>
+                            )}
+                            {sortedData.map((item, idx) => {
+                              const pctReemb = item.valor > 0 ? item.reemb / item.valor : 0;
+                              return (
+                                <tr key={`${block.title}-${item.label}-${idx}`} className="border-t border-slate-100 hover:bg-slate-50">
+                                  <td className="px-3 py-1.5 text-slate-700 max-w-[260px] truncate" title={item.label}>{item.label}</td>
+                                  <td className={`px-3 py-1.5 text-right font-semibold ${block.accent}`}>{fmtBRLZero(item.valor)}</td>
+                                  <td className="px-3 py-1.5 text-right text-emerald-700">{fmtBRLZero(item.reemb)}</td>
+                                  <td className="px-3 py-1.5 text-right text-slate-700">{fmtPct(pctReemb)}</td>
+                                  <td className="px-3 py-1.5 text-right text-slate-700">{fmtNum(item.qtd)}</td>
+                                  <td className="px-3 py-1.5 text-right text-slate-700">{fmtNum(item.osQtd)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="sticky bottom-0 z-10 bg-slate-50 border-t border-slate-200">
+                            <tr className="font-semibold text-slate-700">
+                              <td className="px-3 py-1.5">Total</td>
+                              <td className="px-3 py-1.5 text-right">{fmtBRLZero(totalValor)}</td>
+                              <td className="px-3 py-1.5 text-right text-emerald-700">{fmtBRLZero(totalReemb)}</td>
+                              <td className="px-3 py-1.5 text-right">{fmtPct(totalPct)}</td>
+                              <td className="px-3 py-1.5 text-right">{fmtNum(totalQtd)}</td>
+                              <td className="px-3 py-1.5 text-right">{fmtNum(totalOs)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === 'itensos' && activeItemsSubTab === 'status' && (
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-4">
+                <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Status por Placa</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Vida útil por KM dos itens críticos: amortecedor 60k, disco 40k, embreagem 60k, pastilha 20k e pneu 40k.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500">{fmtNum(itensOsStatusRows.length)} placa(s)</span>
+                    <button
+                      type="button"
+                      onClick={() => exportItensOsStatusExcel(itensOsStatusRows)}
+                      className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-slate-300 bg-white text-slate-500 hover:text-cyan-700 hover:border-cyan-300"
+                      title="Exportar status por placa para Excel"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-auto" style={{ maxHeight: '58vh' }}>
+                  <table className="min-w-full text-xs">
+                    <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
+                      <tr>
+                        <th className="text-left px-3 py-2">Placa</th>
+                        <th className="text-left px-3 py-2">Modelo</th>
+                        <th className="text-right px-3 py-2">KM Atual</th>
+                        <th className="text-left px-3 py-2">Última Troca Mapeada</th>
+                        <th className="text-left px-3 py-2">Próximo Evento Previsto</th>
+                        <th className="text-center px-3 py-2">Risco</th>
+                        <th className="text-left px-3 py-2">Alertas Pendentes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itensOsStatusRows.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-8 text-center text-slate-400">Sem dados suficientes para o status por placa no recorte atual.</td>
+                        </tr>
+                      )}
+                      {itensOsStatusRows.map((row) => {
+                        const kmClass = row.kmAtual >= 100000 ? 'text-rose-700 font-semibold' : 'text-slate-700';
+                        const riscoClass = row.riscoNivel === 'ALTO'
+                          ? 'border-rose-200 bg-rose-50 text-rose-700'
+                          : row.riscoNivel === 'MEDIO'
+                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+                        return (
+                          <tr key={`status-placa-${row.placa}-${row.modelo}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/30">
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                                {row.placa || '—'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-slate-700 max-w-[200px] truncate" title={row.modelo || '—'}>{row.modelo || '—'}</td>
+                            <td className={`px-3 py-2 text-right ${kmClass}`}>{fmtNum(row.kmAtual)}</td>
+                            <td className="px-3 py-2 text-slate-700 max-w-[260px] truncate" title={row.ultimaRevisao}>{row.ultimaRevisao}</td>
+                            <td className="px-3 py-2 text-slate-700 max-w-[280px] truncate" title={row.proximoEvento}>{row.proximoEvento}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${riscoClass}`}>
+                                {row.riscoNivel}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-wrap gap-1.5 max-w-[420px]">
+                                {row.alertas.slice(0, 3).map((alerta, idx) => {
+                                  const text = alerta.toLowerCase();
+                                  const badgeClass = text.includes('sem alertas')
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                    : text.includes('atras') || text.includes('km elevado') || (idx === 0 && row.riscoNivel === 'ALTO')
+                                      ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                      : 'border-amber-200 bg-amber-50 text-amber-700';
+
+                                  return (
+                                    <span key={`${row.placa}-alerta-${idx}`} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}>
+                                      {alerta}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'itensos' && activeItemsSubTab === 'estimativa' && (
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-4">
+                <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Estimativa de Próximo Evento por Placa</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Probabilidade e custo estimado com base no histórico real de OS (preventiva/corretiva).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500">{fmtNum(sortedItensOsEstimativaRows.length)} placa(s)</span>
+                    <button
+                      type="button"
+                      onClick={() => exportItensOsEstimativaExcel(sortedItensOsEstimativaRows)}
+                      className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-slate-300 bg-white text-slate-500 hover:text-indigo-700 hover:border-indigo-300"
+                      title="Exportar estimativa para Excel"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-auto" style={{ maxHeight: '58vh' }}>
+                  <table className="min-w-full text-xs">
+                    <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
+                      <tr>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('placa')} className="flex items-center gap-1 hover:text-slate-900">Placa{estimativaSortIcon('placa')}</button></th>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo{estimativaSortIcon('modelo')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('kmAtual')} className="flex items-center gap-1 justify-end hover:text-slate-900">KM Atual{estimativaSortIcon('kmAtual')}</button></th>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('ultimoEventoTipo')} className="flex items-center gap-1 hover:text-slate-900">Último Tipo{estimativaSortIcon('ultimoEventoTipo')}</button></th>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('ultimoEventoData')} className="flex items-center gap-1 hover:text-slate-900">Último Evento{estimativaSortIcon('ultimoEventoData')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('diasSemEvento')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dias sem Evento{estimativaSortIcon('diasSemEvento')}</button></th>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('proximoTipo')} className="flex items-center gap-1 hover:text-slate-900">Próximo Tipo{estimativaSortIcon('proximoTipo')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('probabilidade')} className="flex items-center gap-1 justify-end hover:text-slate-900">Probabilidade{estimativaSortIcon('probabilidade')}</button></th>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('proximaData')} className="flex items-center gap-1 hover:text-slate-900">Próxima Data{estimativaSortIcon('proximaData')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('diasAteProximo')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dias p/ Próx{estimativaSortIcon('diasAteProximo')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('custoEstimado')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo Est.{estimativaSortIcon('custoEstimado')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('custoP75')} className="flex items-center gap-1 justify-end hover:text-slate-900">Faixa P25-P75{estimativaSortIcon('custoP75')}</button></th>
+                        <th className="text-center px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('metodoCusto')} className="flex items-center gap-1 justify-center hover:text-slate-900">Método{estimativaSortIcon('metodoCusto')}</button></th>
+                        <th className="text-right px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('confianca')} className="flex items-center gap-1 justify-end hover:text-slate-900">Confiança{estimativaSortIcon('confianca')}</button></th>
+                        <th className="text-left px-3 py-2"><button type="button" onClick={() => toggleEstimativaSort('alerta')} className="flex items-center gap-1 hover:text-slate-900">Alerta{estimativaSortIcon('alerta')}</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedItensOsEstimativaRows.length === 0 && (
+                        <tr>
+                          <td colSpan={15} className="px-3 py-8 text-center text-slate-400">Sem dados suficientes para estimativa no recorte atual.</td>
+                        </tr>
+                      )}
+                      {pagedItensOsEstimativaRows.map((row) => {
+                        const probClass = row.probabilidade >= 0.7 ? 'text-emerald-700' : row.probabilidade >= 0.55 ? 'text-amber-700' : 'text-slate-700';
+                        const confiancaClass = row.confianca >= 0.7 ? 'text-emerald-700' : row.confianca >= 0.45 ? 'text-amber-700' : 'text-rose-700';
+                        const diasClass = Number.isFinite(row.diasAteProximo) && row.diasAteProximo < 0 ? 'text-rose-700 font-medium' : 'text-slate-700';
+
+                        return (
+                          <tr key={`${row.placa}-${row.modelo}-${row.proximoTipo}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/40 hover:bg-indigo-50/40">
+                            <td className="px-3 py-2 font-medium text-slate-800">{row.placa || '—'}</td>
+                            <td className="px-3 py-2 text-slate-700 max-w-[220px] truncate" title={row.modelo || '—'}>{row.modelo || '—'}</td>
+                            <td className="px-3 py-2 text-right text-slate-700">{fmtNum(row.kmAtual)}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.ultimoEventoTipo}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.ultimoEventoData ? row.ultimoEventoData.toLocaleDateString('pt-BR') : '—'}</td>
+                            <td className="px-3 py-2 text-right text-slate-700">{Number.isFinite(row.diasSemEvento) ? fmtNum(row.diasSemEvento) : '—'}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.proximoTipo}</td>
+                            <td className={`px-3 py-2 text-right font-medium ${probClass}`}>{fmtPct(row.probabilidade)}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.proximaData ? row.proximaData.toLocaleDateString('pt-BR') : '—'}</td>
+                            <td className={`px-3 py-2 text-right ${diasClass}`}>{Number.isFinite(row.diasAteProximo) ? fmtNum(row.diasAteProximo) : '—'}</td>
+                            <td className="px-3 py-2 text-right text-indigo-700 font-semibold">{fmtBRLZero(row.custoEstimado)}</td>
+                            <td className="px-3 py-2 text-right text-slate-700">{`${fmtBRLZero(row.custoP25)} - ${fmtBRLZero(row.custoP75)}`}</td>
+                            <td className="px-3 py-2 text-center text-slate-700">{row.metodoCusto}</td>
+                            <td className={`px-3 py-2 text-right font-medium ${confiancaClass}`}>{fmtPct(row.confianca)}</td>
+                            <td className="px-3 py-2 text-slate-700 max-w-[260px] truncate" title={row.alerta}>{row.alerta}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-500">
+                    Página {estimativaPage.toLocaleString('pt-BR')} de {estimativaTotalPages.toLocaleString('pt-BR')} - {fmtNum(sortedItensOsEstimativaRows.length)} registro(s)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEstimativaPage(prev => Math.max(1, prev - 1))}
+                      disabled={estimativaPage <= 1}
+                      className="px-2.5 py-1 text-xs rounded-md border border-slate-300 bg-white text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:border-slate-400"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEstimativaPage(prev => Math.min(estimativaTotalPages, prev + 1))}
+                      disabled={estimativaPage >= estimativaTotalPages}
+                      className="px-2.5 py-1 text-xs rounded-md border border-slate-300 bg-white text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:border-slate-400"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Table ── */}
+            {!(activeTab === 'itensos' && (activeItemsSubTab === 'estimativa' || activeItemsSubTab === 'status')) && (
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
               <div className={`${curTab.hdr} text-white px-4 py-2 text-sm font-semibold flex items-center gap-2`}>
                 <curTab.icon className="w-4 h-4" />{curTab.label}
@@ -4831,7 +7648,7 @@ export default function AnaliseContrato() {
                       </th>
                       {/* Tab header group */}
                       <th colSpan={tabCols.length} className={`${curTab.hdr} text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide`}>
-                        {curTab.label} ({dynYears[0]} - {dynYears[dynYears.length-1]})
+                        {curTab.label}{dynYears.length > 0 ? ` (${dynYears[0]} - ${dynYears[dynYears.length-1]})` : ''}
                       </th>
                       <th rowSpan={2} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-l border-white/20" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
                         Det.
@@ -4884,7 +7701,7 @@ export default function AnaliseContrato() {
                               idComercial: row.idComercial,
                               idVeiculo: row.idVeiculo,
                               tipoContrato: row.tipoContrato,
-                              mode: activeTab === 'sinistro' ? 'sinistro' : activeTab === 'mansin' ? 'mansin' : activeTab === 'faturamento' ? 'faturamento' : 'manutencao' 
+                              mode: activeTab === 'sinistro' ? 'sinistro' : activeTab === 'mansin' ? 'mansin' : activeTab === 'faturamento' ? 'faturamento' : activeTab === 'itensos' ? 'itensos' : 'manutencao' 
                             })}
                             className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                           >
@@ -4933,13 +7750,14 @@ export default function AnaliseContrato() {
                 </div>
               )}
             </div>
+            )}
           </>
         )}
 
         <MaintDetailModal
           open={!!maintDetailTarget}
           placa={maintDetailTarget?.placa || ''}
-          rows={maintDetailTarget?.mode === 'faturamento' ? fatDetailRows : maintDetailData.rows}
+          rows={maintDetailTarget?.mode === 'faturamento' ? fatDetailRows : maintDetailTarget?.mode === 'itensos' ? itensOsDetailRows : maintDetailData.rows}
           resumoPorTipo={maintDetailTarget?.mode === 'manutencao' ? maintDetailData.resumoPorTipo : []}
           mode={maintDetailTarget?.mode || 'manutencao'}
           onClose={() => setMaintDetailTarget(null)}

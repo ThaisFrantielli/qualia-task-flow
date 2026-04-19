@@ -227,6 +227,14 @@ export async function queryTable(
         // fallback to a simple select to avoid breaking the API when auxiliary tables are missing or schema differs
         result = await client.query(`SELECT * FROM public."dim_contratos_locacao" LIMIT $1`, [limit]);
       }
+    } else if (table === 'fat_itens_ordem_servico') {
+      // Prioriza ocorrências mais recentes para aumentar cobertura de vínculo OS no frontend.
+      result = await client.query(
+        `SELECT * FROM public."fat_itens_ordem_servico"
+         ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
+         LIMIT $1`,
+        [limit]
+      );
     } else if (fields && fields.length > 0) {
       // Validate field names
       const safeFields = fields.filter(f => FIELD_REGEX.test(f));

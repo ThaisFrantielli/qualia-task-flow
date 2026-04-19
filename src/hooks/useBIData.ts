@@ -17,6 +17,11 @@ const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; 
 const inFlightRequests = new Map<string, Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }>>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+function resolveSourceFromMetadata(metadata: BIMetadata | null): 'live' | 'static' {
+  const source = String(metadata?.source || '').toLowerCase();
+  return source.includes('static') ? 'static' : 'live';
+}
+
 /**
  * Normaliza o identificador da tabela removendo extensões e sufixos desnecessários.
  */
@@ -226,19 +231,29 @@ export default function useBIData<T = unknown>(
   identifier: string,
   options?: { staleTime?: number; enabled?: boolean; limit?: number; staticFallback?: boolean }
 ): BIResult<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [metadata, setMetadata] = useState<BIMetadata | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [source, setSource] = useState<'live' | 'static' | null>(null);
-  const fetchIdRef = useRef(0);
-
   const staleTime = options?.staleTime ?? CACHE_TTL;
   const enabled = options?.enabled ?? true;
   const limit = options?.limit;
   const staticFallback = options?.staticFallback ?? false;
   const tableName = normalizeTableName(identifier);
+  const cacheKey = limit ? `${tableName}_limit${limit}` : tableName;
+
+  const initialCached = dataCache.get(cacheKey);
+  const initialCachedData = initialCached?.data as unknown;
+  const initialCachedHasRows = Array.isArray(initialCachedData) ? initialCachedData.length > 0 : initialCachedData != null;
+  const hasUsableInitialCache = Boolean(
+    enabled &&
+    initialCached &&
+    (!staticFallback || initialCachedHasRows)
+  );
+
+  const [data, setData] = useState<T | null>(() => hasUsableInitialCache ? (initialCached!.data as T) : null);
+  const [metadata, setMetadata] = useState<BIMetadata | null>(() => hasUsableInitialCache ? initialCached!.metadata : null);
+  const [loading, setLoading] = useState<boolean>(() => enabled ? !hasUsableInitialCache : false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => hasUsableInitialCache ? new Date(initialCached!.timestamp) : null);
+  const [source, setSource] = useState<'live' | 'static' | null>(() => hasUsableInitialCache ? resolveSourceFromMetadata(initialCached!.metadata) : null);
+  const fetchIdRef = useRef(0);
 
   const load = useCallback(async (forceRefresh = false) => {
     if (!enabled) {
@@ -249,18 +264,28 @@ export default function useBIData<T = unknown>(
     const fetchId = ++fetchIdRef.current;
 
     // Serve from cache when fresh
-    const cacheKey = limit ? `${tableName}_limit${limit}` : tableName;
     const cached = dataCache.get(cacheKey);
     const cachedData = cached?.data as unknown;
     const cachedHasRows = Array.isArray(cachedData) ? cachedData.length > 0 : cachedData != null;
+    const hasUsableCachedSnapshot = Boolean(cached && (!staticFallback || cachedHasRows));
     if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime && (!staticFallback || cachedHasRows)) {
       setData(cached.data as T);
       setMetadata(cached.metadata);
-      setSource('live');
+      setSource(resolveSourceFromMetadata(cached.metadata));
       setLastUpdated(new Date(cached.timestamp));
       setLoading(false);
       setError(null);
       return;
+    }
+
+    if (!forceRefresh && hasUsableCachedSnapshot) {
+      // Stale-while-revalidate: exibe cache imediatamente e atualiza em segundo plano.
+      setData(cached!.data as T);
+      setMetadata(cached!.metadata);
+      setSource(resolveSourceFromMetadata(cached!.metadata));
+      setLastUpdated(new Date(cached!.timestamp));
+      setLoading(false);
+      setError(null);
     }
 
     if (staticFallback) {
@@ -278,7 +303,7 @@ export default function useBIData<T = unknown>(
       }
     }
 
-    setLoading(true);
+    setLoading(!hasUsableCachedSnapshot);
     setError(null);
 
     let request = inFlightRequests.get(cacheKey);
@@ -319,7 +344,9 @@ export default function useBIData<T = unknown>(
       }
     }
 
-    setError(`Sem dados disponíveis para '${tableName}'. Verifique a conexão com o servidor.`);
+    if (!hasUsableCachedSnapshot) {
+      setError(`Sem dados disponíveis para '${tableName}'. Verifique a conexão com o servidor.`);
+    }
     setLoading(false);
   }, [tableName, staleTime, enabled, limit, staticFallback]);
 
