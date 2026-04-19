@@ -930,11 +930,8 @@ function createWhatsAppClient(instanceId, instanceName = null) {
         }
     });
 
-    // Listen for incoming messages (message + message_create for broader compatibility)
-    client.on('message', async (message) => {
-        await handleIncomingMessage(instanceId, client, message);
-    });
-
+    // 'message_create' cobre mensagens recebidas E enviadas (fromMe).
+    // Não precisamos do 'message' separado — evita duplicações.
     client.on('message_create', async (message) => {
         await handleIncomingMessage(instanceId, client, message);
     });
