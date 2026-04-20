@@ -58,14 +58,6 @@ type EnrichedRow = Row & {
 
 type EvolutionMetricKind = 'number' | 'currency' | 'compactCurrency';
 
-type EvolutionMetricRow = {
-  indicador: string;
-  valuesPeriodo: number[];
-  variacaoPct: number | null;
-  variationsMoM: (number | null)[];
-  kind: EvolutionMetricKind;
-};
-
 type SegmentEvolutionRow = {
   segment: SegmentKey;
   segmentLabel: string;
@@ -447,6 +439,7 @@ export default function FaturamentoDashboard() {
   const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>('TODOS');
   const [selectedSegmentsMulti, setSelectedSegmentsMulti] = useState<SegmentKey[]>([]);
   const [chartTab, setChartTab] = useState<ChartTab>('MENSAL');
+  const [detailTab, setDetailTab] = useState<'mensal' | 'segmento'>('mensal');
 
   const { results, loading, error } = useBIDataBatch(
     ['fat_faturamentos', 'dim_contratos_locacao', 'dim_frota'],
@@ -943,6 +936,8 @@ export default function FaturamentoDashboard() {
       PUBLICO: new Set<string>(),
     };
 
+    let qtdVeiculos = 0;
+
     for (const item of faturamentoItens) {
       const rawNoteId = String(item.IdNota ?? '').trim();
       const noteId = rawNoteId.replace(/^0+/, '') || rawNoteId;
@@ -953,6 +948,7 @@ export default function FaturamentoDashboard() {
       const idv = String(item.IdVeiculo ?? item.idveiculo ?? '').trim().toUpperCase();
       if (!idv) continue;
 
+      qtdVeiculos += 1;
       allVehicles.add(idv);
       segmentVehicles[seg].add(idv);
     }
@@ -997,6 +993,7 @@ export default function FaturamentoDashboard() {
 
     const frotaAtiva = allVehicles.size;
     const ticket = frotaAtiva > 0 ? faturamento / frotaAtiva : 0;
+    const ticketQtdVeiculos = qtdVeiculos > 0 ? faturamento / qtdVeiculos : 0;
     const segmentTicket: Record<SegmentKey, number> = {
       PF: segmentVehicles.PF.size > 0 ? segmentFat.PF / segmentVehicles.PF.size : 0,
       PJ: segmentVehicles.PJ.size > 0 ? segmentFat.PJ / segmentVehicles.PJ.size : 0,
@@ -1010,8 +1007,10 @@ export default function FaturamentoDashboard() {
 
     return {
       faturamento,
+      qtdVeiculos,
       frotaAtiva,
       ticket,
+      ticketQtdVeiculos,
       segmentFat,
       segmentFrota,
       segmentTicket,
@@ -1068,53 +1067,38 @@ export default function FaturamentoDashboard() {
     };
   }, [dataPrepared.monthly, selectedMonth, selectedMonthsMulti, selectedYear]);
 
-  const evolucaoMensal = useMemo(() => {
-    const monthsInPeriod = comparisonWindow.periodMonthIndexes.map((idx) => {
-      const monthRow = dataPrepared.monthly[idx];
-      return {
-        faturamento: Number(monthRow?.faturamentoEmitido ?? 0),
-        frotaAtiva: Number(monthRow?.frotaAtiva ?? 0),
-      };
+  const monthlyDetailRows = useMemo(() => {
+    const locacaoValues = dataPrepared.monthly.map((row) => Number(row.faturamentoEmitido ?? 0));
+    const compraValues = dataPrepared.monthly.map((row) => Number(row.valorCompra ?? 0));
+    const qtdVeiculosValues = dataPrepared.monthly.map((row) => Number(row.qtVeiculos ?? 0));
+    const ticketValues = dataPrepared.monthly.map((row) => {
+      const faturamento = Number(row.faturamentoEmitido ?? 0);
+      const qtdVeiculos = Number(row.qtVeiculos ?? 0);
+      return qtdVeiculos > 0 ? faturamento / qtdVeiculos : 0;
     });
 
-    const frotaAtivaPeriodo = monthsInPeriod.map((m) => m.frotaAtiva);
-    const faturamentoPeriodo = monthsInPeriod.map((m) => m.faturamento);
-    const ticketPeriodo = monthsInPeriod.map((m) => (m.frotaAtiva > 0 ? m.faturamento / m.frotaAtiva : 0));
-
     const firstMonthIsJan = comparisonWindow.periodMonthIndexes[0] === 0;
-    const firstPrevFrota = firstMonthIsJan ? previousDecember?.frotaAtiva : null;
-    const firstPrevFaturamento = firstMonthIsJan ? previousDecember?.faturamento : null;
-    const firstPrevTicket = firstMonthIsJan ? previousDecember?.ticket : null;
+    const firstPrevLocacao = firstMonthIsJan ? previousDecember?.faturamento : null;
+    const firstPrevQtdVeiculos = firstMonthIsJan ? previousDecember?.qtdVeiculos : null;
+    const firstPrevTicket = firstMonthIsJan ? previousDecember?.ticketQtdVeiculos : null;
 
-    const rows: EvolutionMetricRow[] = [
-      {
-        indicador: 'Frota faturada',
-        valuesPeriodo: frotaAtivaPeriodo,
-        variacaoPct: getPeriodVariation(frotaAtivaPeriodo),
-        variationsMoM: getMoMVariations(frotaAtivaPeriodo, firstPrevFrota),
-        kind: 'number',
-      },
-      {
-        indicador: 'Fat. Mensal',
-        valuesPeriodo: faturamentoPeriodo,
-        variacaoPct: getPeriodVariation(faturamentoPeriodo),
-        variationsMoM: getMoMVariations(faturamentoPeriodo, firstPrevFaturamento),
-        kind: 'compactCurrency',
-      },
-      {
-        indicador: 'Ticket Médio',
-        valuesPeriodo: ticketPeriodo,
-        variacaoPct: getPeriodVariation(ticketPeriodo),
-        variationsMoM: getMoMVariations(ticketPeriodo, firstPrevTicket),
-        kind: 'currency',
-      },
-    ];
+    const locacaoMoM = getMoMVariations(locacaoValues, firstPrevLocacao);
+    const compraMoM = getMoMVariations(compraValues, firstPrevLocacao ? firstPrevLocacao /* reuse baseline if appropriate */ : null);
+    const qtdVeiculosMoM = getMoMVariations(qtdVeiculosValues, firstPrevQtdVeiculos);
+    const ticketMoM = getMoMVariations(ticketValues, firstPrevTicket);
 
-    return {
-      periodLabels: comparisonWindow.periodMonthLabels,
-      rows,
-    };
-  }, [comparisonWindow, dataPrepared.monthly, previousDecember]);
+    return dataPrepared.monthly.map((row, idx) => ({
+      mes: row.mes,
+      valorLocacao: locacaoValues[idx] ?? 0,
+      valorCompra: compraValues[idx] ?? 0,
+      qtdVeiculos: qtdVeiculosValues[idx] ?? 0,
+      ticketMedio: ticketValues[idx] ?? 0,
+      variacaoLocacao: locacaoMoM[idx] ?? null,
+      variacaoValorCompra: compraMoM[idx] ?? null,
+      variacaoQtdVeiculos: qtdVeiculosMoM[idx] ?? null,
+      variacaoTicket: ticketMoM[idx] ?? null,
+    }));
+  }, [comparisonWindow.periodMonthIndexes, dataPrepared.monthly, previousDecember]);
 
   const evolucaoSegmento = useMemo(() => {
     const periodIndexes = comparisonWindow.periodMonthIndexes;
@@ -1213,6 +1197,9 @@ export default function FaturamentoDashboard() {
 
     const getContractValue = (row: Row): number => parseNumber(
       row.ValorLocacao
+      ?? row.UltimoValorLocacao
+      ?? row.ValorMensalAtual
+      ?? row.valorMensalAtual
       ?? row.VlrLocacao
       ?? row.ValorTotalContrato
       ?? row.ValorContrato
@@ -1273,7 +1260,6 @@ export default function FaturamentoDashboard() {
           if (b[1] !== a[1]) return b[1] - a[1];
           return a[0].localeCompare(b[0], 'pt-BR');
         })
-        .slice(0, 10)
         .map(([cliente, count]) => ({ cliente, count }));
 
       return {
@@ -1314,6 +1300,53 @@ export default function FaturamentoDashboard() {
     return '0,0%';
   };
 
+  const CustomLegend = ({ payload }: any) => {
+    if (!payload || !Array.isArray(payload)) return null;
+    return (
+      <div className="flex items-center gap-4 flex-wrap">
+        {payload.map((entry: any) => (
+          <div key={entry.dataKey || entry.value} className="inline-flex items-center gap-2 text-sm text-slate-700">
+            <span style={{ width: 10, height: 10, backgroundColor: entry.color || '#000', borderRadius: 9999, display: 'inline-block' }} />
+            <span>{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const visibleMonthIndexes = useMemo(() => {
+    if (selectedMonthsMulti.length > 0) {
+      return Array.from(new Set(
+        selectedMonthsMulti
+          .filter((m) => Number.isFinite(m) && m >= 1 && m <= 12)
+          .map((m) => m - 1)
+      )).sort((a, b) => a - b);
+    }
+    return MONTHS.map((_, idx) => idx);
+  }, [selectedMonthsMulti]);
+
+  const visibleMonthly = useMemo(
+    () => visibleMonthIndexes.map((idx) => dataPrepared.monthly[idx]!),
+    [dataPrepared.monthly, visibleMonthIndexes]
+  );
+
+  const visibleMonthlySegmentFaturamento = useMemo(
+    () => visibleMonthIndexes.map((idx) => dataPrepared.monthlySegmentFaturamento[idx]!),
+    [dataPrepared.monthlySegmentFaturamento, visibleMonthIndexes]
+  );
+
+  const visibleMonthlySegmentTicket = useMemo(
+    () => visibleMonthIndexes.map((idx) => dataPrepared.monthlySegmentTicket[idx]!),
+    [dataPrepared.monthlySegmentTicket, visibleMonthIndexes]
+  );
+
+  const visibleMonthlyDetailRows = useMemo(
+    () => visibleMonthIndexes.map((idx) => monthlyDetailRows[idx]!).filter(Boolean),
+    [monthlyDetailRows, visibleMonthIndexes]
+  );
+
+  const getMonthValueByLabel = (mes: string): number => MONTHS.indexOf(String(mes ?? '').toUpperCase()) + 1;
+
   const chartTitle =
     chartTab === 'MENSAL'
       ? 'Evolução Mensal de Faturamento'
@@ -1331,10 +1364,10 @@ export default function FaturamentoDashboard() {
   const monthsPerViewport = 6;
   const chartPointCount =
     chartTab === 'MENSAL'
-      ? dataPrepared.monthly.length
+      ? visibleMonthly.length
       : chartTab === 'SEGMENTO_FAT'
-        ? dataPrepared.monthlySegmentFaturamento.length
-        : dataPrepared.monthlySegmentTicket.length;
+        ? visibleMonthlySegmentFaturamento.length
+        : visibleMonthlySegmentTicket.length;
   // ajustar espaço por ponto para evitar meses escondidos
   const chartContentWidth = `${Math.max(monthsPerViewport, chartPointCount) * 320}px`;
 
@@ -1373,12 +1406,12 @@ export default function FaturamentoDashboard() {
     setSelectedSegmentsMulti([]);
   };
 
-  const getSegmentFill = (segment: SegmentKey, idx: number): string => {
+  const getSegmentFill = (segment: SegmentKey, monthValue: number): string => {
     const def = SEGMENTS.find((s) => s.key === segment);
     if (!def) return '#94a3b8';
 
     const dimBySegment = segmentFilter !== 'TODOS' && segmentFilter !== segment;
-    const dimByMonth = selectedMonth !== 0 && selectedMonth !== idx + 1;
+    const dimByMonth = selectedMonth !== 0 && selectedMonth !== monthValue;
     return dimBySegment || dimByMonth ? def.muted : def.color;
   };
 
@@ -1540,7 +1573,7 @@ export default function FaturamentoDashboard() {
           <div className="h-full min-w-[1080px]" style={{ width: chartContentWidth }}>
             {chartTab === 'MENSAL' && (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={dataPrepared.monthly} margin={{ top: 72, right: 16, left: 12, bottom: 0 }} barCategoryGap="1%">
+                <ComposedChart data={visibleMonthly} margin={{ top: 72, right: 16, left: 12, bottom: 0 }} barCategoryGap="1%">
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="mes" />
                 <YAxis yAxisId="brl" tickFormatter={(v) => fmtCompactBRL(Number(v))} />
@@ -1551,26 +1584,35 @@ export default function FaturamentoDashboard() {
                     return [fmtBRL(Number(value)), name];
                   }}
                 />
-                <Legend verticalAlign="top" align="left" iconType="circle" wrapperStyle={{ top: -8, left: 16 }} />
+                <Legend verticalAlign="top" align="left" wrapperStyle={{ top: 8, left: 16 }} content={CustomLegend} />
 
                 <Bar yAxisId="brl" dataKey="faturamentoEmitido" name="Valor de Locação" radius={[6, 6, 0, 0]} onClick={onMonthlyClick} cursor="pointer" minPointSize={2} barSize={110}>
-                  {dataPrepared.monthly.map((row, idx) => (
-                    <Cell key={`fat-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== idx + 1 ? '#94a3b8' : '#0f766e'} />
-                  ))}
+                  {visibleMonthly.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return (
+                      <Cell key={`fat-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== monthValue ? '#94a3b8' : '#0f766e'} />
+                    );
+                  })}
                   <LabelList dataKey="faturamentoEmitido" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
 
                 <Bar yAxisId="qtd" dataKey="qtVeiculos" name="Quantidade de Veículos" radius={[6, 6, 0, 0]} onClick={onMonthlyClick} cursor="pointer" minPointSize={2} barSize={110}>
-                  {dataPrepared.monthly.map((row, idx) => (
-                    <Cell key={`qtd-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== idx + 1 ? '#fcd9b6' : '#fb923c'} />
-                  ))}
+                  {visibleMonthly.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return (
+                      <Cell key={`qtd-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== monthValue ? '#fcd9b6' : '#fb923c'} />
+                    );
+                  })}
                   <LabelList dataKey="qtVeiculos" position="top" formatter={(v: number) => fmtNumber(Number(v))} fontSize={12} />
                 </Bar>
 
                 <Bar yAxisId="brl" dataKey="valorCompra" name="Valor de Compra" radius={[6, 6, 0, 0]} onClick={onMonthlyClick} cursor="pointer" minPointSize={2} barSize={110}>
-                  {dataPrepared.monthly.map((row, idx) => (
-                    <Cell key={`compra-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== idx + 1 ? '#bfdbfe' : '#2563eb'} />
-                  ))}
+                  {visibleMonthly.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return (
+                      <Cell key={`compra-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== monthValue ? '#bfdbfe' : '#2563eb'} />
+                    );
+                  })}
                   <LabelList dataKey="valorCompra" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
                 </ComposedChart>
@@ -1579,31 +1621,34 @@ export default function FaturamentoDashboard() {
 
             {chartTab === 'SEGMENTO_FAT' && (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dataPrepared.monthlySegmentFaturamento} margin={{ top: 72, right: 16, left: 12, bottom: 0 }} barCategoryGap="1%">
+                <BarChart data={visibleMonthlySegmentFaturamento} margin={{ top: 72, right: 16, left: 12, bottom: 0 }} barCategoryGap="1%">
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="mes" />
                 <YAxis tickFormatter={(v) => fmtCompactBRL(Number(v))} />
                 <Tooltip formatter={(value: number) => fmtBRL(Number(value))} />
-                <Legend verticalAlign="top" align="left" iconType="circle" wrapperStyle={{ top: -8, left: 16 }} />
+                <Legend verticalAlign="top" align="left" wrapperStyle={{ top: 8, left: 16 }} content={CustomLegend} />
 
                 <Bar dataKey="PF" name="PF" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(entry) => onSegmentMonthClick(entry, 'PF')} barSize={48}>
-                  {dataPrepared.monthlySegmentFaturamento.map((row, idx) => (
-                    <Cell key={`fat-pf-${row.mes}`} fill={getSegmentFill('PF', idx)} />
-                  ))}
+                  {visibleMonthlySegmentFaturamento.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return <Cell key={`fat-pf-${row.mes}`} fill={getSegmentFill('PF', monthValue)} />;
+                  })}
                   <LabelList dataKey="PF" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
 
                 <Bar dataKey="PJ" name="PJ" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(entry) => onSegmentMonthClick(entry, 'PJ')} barSize={48}>
-                  {dataPrepared.monthlySegmentFaturamento.map((row, idx) => (
-                    <Cell key={`fat-pj-${row.mes}`} fill={getSegmentFill('PJ', idx)} />
-                  ))}
+                  {visibleMonthlySegmentFaturamento.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return <Cell key={`fat-pj-${row.mes}`} fill={getSegmentFill('PJ', monthValue)} />;
+                  })}
                   <LabelList dataKey="PJ" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
 
                 <Bar dataKey="PUBLICO" name="Público" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(entry) => onSegmentMonthClick(entry, 'PUBLICO')} barSize={48}>
-                  {dataPrepared.monthlySegmentFaturamento.map((row, idx) => (
-                    <Cell key={`fat-pub-${row.mes}`} fill={getSegmentFill('PUBLICO', idx)} />
-                  ))}
+                  {visibleMonthlySegmentFaturamento.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return <Cell key={`fat-pub-${row.mes}`} fill={getSegmentFill('PUBLICO', monthValue)} />;
+                  })}
                   <LabelList dataKey="PUBLICO" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
                 </BarChart>
@@ -1612,31 +1657,34 @@ export default function FaturamentoDashboard() {
 
             {chartTab === 'SEGMENTO_TICKET' && (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dataPrepared.monthlySegmentTicket} margin={{ top: 72, right: 16, left: 12, bottom: 0 }} barCategoryGap="1%">
+                <BarChart data={visibleMonthlySegmentTicket} margin={{ top: 72, right: 16, left: 12, bottom: 0 }} barCategoryGap="1%">
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="mes" />
                 <YAxis tickFormatter={(v) => fmtCompactBRL(Number(v))} />
                 <Tooltip formatter={(value: number) => fmtBRL(Number(value))} />
-                <Legend verticalAlign="top" align="left" iconType="circle" wrapperStyle={{ top: -8, left: 16 }} />
+                <Legend verticalAlign="top" align="left" wrapperStyle={{ top: 8, left: 16 }} content={CustomLegend} />
 
                 <Bar dataKey="PF" name="PF" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(entry) => onSegmentMonthClick(entry, 'PF')} barSize={48}>
-                  {dataPrepared.monthlySegmentTicket.map((row, idx) => (
-                    <Cell key={`tick-pf-${row.mes}`} fill={getSegmentFill('PF', idx)} />
-                  ))}
+                  {visibleMonthlySegmentTicket.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return <Cell key={`tick-pf-${row.mes}`} fill={getSegmentFill('PF', monthValue)} />;
+                  })}
                   <LabelList dataKey="PF" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
 
                 <Bar dataKey="PJ" name="PJ" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(entry) => onSegmentMonthClick(entry, 'PJ')} barSize={48}>
-                  {dataPrepared.monthlySegmentTicket.map((row, idx) => (
-                    <Cell key={`tick-pj-${row.mes}`} fill={getSegmentFill('PJ', idx)} />
-                  ))}
+                  {visibleMonthlySegmentTicket.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return <Cell key={`tick-pj-${row.mes}`} fill={getSegmentFill('PJ', monthValue)} />;
+                  })}
                   <LabelList dataKey="PJ" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
 
                 <Bar dataKey="PUBLICO" name="Público" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(entry) => onSegmentMonthClick(entry, 'PUBLICO')} barSize={48}>
-                  {dataPrepared.monthlySegmentTicket.map((row, idx) => (
-                    <Cell key={`tick-pub-${row.mes}`} fill={getSegmentFill('PUBLICO', idx)} />
-                  ))}
+                  {visibleMonthlySegmentTicket.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return <Cell key={`tick-pub-${row.mes}`} fill={getSegmentFill('PUBLICO', monthValue)} />;
+                  })}
                   <LabelList dataKey="PUBLICO" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
                 </Bar>
                 </BarChart>
@@ -1645,31 +1693,59 @@ export default function FaturamentoDashboard() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+        <div className="mt-4">
           <div className="overflow-auto border rounded-lg">
-            {chartTab === 'MENSAL' && (
+            <div className="px-4 py-3 border-b bg-slate-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900">Detalhamento Mensal</h4>
+                  <p className="text-xs text-slate-500">Valor de locação, quantidade de veículos, ticket médio e variações mês a mês.</p>
+                </div>
+                <div className="inline-flex rounded-md bg-slate-100 p-1">
+                  <button type="button" onClick={() => setDetailTab('mensal')} className={`px-3 py-1 text-sm rounded ${detailTab === 'mensal' ? 'bg-white shadow-sm' : 'text-slate-600'}`}>Detalhamento</button>
+                  <button type="button" onClick={() => setDetailTab('segmento')} className={`px-3 py-1 text-sm rounded ${detailTab === 'segmento' ? 'bg-white shadow-sm' : 'text-slate-600'}`}>Evolução por Segmento</button>
+                </div>
+              </div>
+            </div>
+            {detailTab === 'mensal' && (
               <table className="min-w-full table-auto text-sm">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-3 py-2 text-left">Mês</th>
-                    <th className="px-3 py-2 text-right">Valor de Locação</th>
                     <th className="px-3 py-2 text-right">Qtde Veículos</th>
+                    <th className="px-3 py-2 text-right text-xs font-normal text-slate-500">Var %</th>
+                    <th className="px-3 py-2 text-right">Valor de Locação</th>
+                    <th className="px-3 py-2 text-right text-xs font-normal text-slate-500">Var %</th>
+                    <th className="px-3 py-2 text-right">Ticket Médio</th>
+                    <th className="px-3 py-2 text-right text-xs font-normal text-slate-500">Var %</th>
                     <th className="px-3 py-2 text-right">Valor de Compra</th>
+                    <th className="px-3 py-2 text-right text-xs font-normal text-slate-500">Var %</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dataPrepared.monthly.map((row, idx) => (
+                  {visibleMonthlyDetailRows.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    return (
                     <tr
                       key={row.mes}
-                      className={`odd:bg-white even:bg-slate-50/60 cursor-pointer ${selectedMonth === idx + 1 ? 'bg-emerald-50' : ''}`}
-                      onClick={() => setSelectedMonth((prev) => (prev === idx + 1 ? 0 : idx + 1))}
+                      className={`odd:bg-white even:bg-slate-50/60 cursor-pointer ${selectedMonth === monthValue ? 'bg-emerald-50' : ''}`}
+                      onClick={() => {
+                        if (monthValue <= 0) return;
+                        setSelectedMonth((prev) => (prev === monthValue ? 0 : monthValue));
+                      }}
                     >
                       <td className="px-3 py-2">{row.mes}</td>
-                      <td className="px-3 py-2 text-right">{fmtBRL(row.faturamentoEmitido)}</td>
-                      <td className="px-3 py-2 text-right">{fmtNumber(row.qtVeiculos)}</td>
-                      <td className="px-3 py-2 text-right">{fmtBRL(row.valorCompra)}</td>
+                      <td className="px-3 py-2 text-right">{fmtNumber(row.qtdVeiculos)}</td>
+                      <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variacaoQtdVeiculos)}`}>{getVariationLabel(row.variacaoQtdVeiculos)}</td>
+                      <td className="px-3 py-2 text-right">{fmtBRL(row.valorLocacao)}</td>
+                      <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variacaoLocacao)}`}>{getVariationLabel(row.variacaoLocacao)}</td>
+                      <td className="px-3 py-2 text-right font-medium">{fmtBRL(row.ticketMedio)}</td>
+                      <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variacaoTicket)}`}>{getVariationLabel(row.variacaoTicket)}</td>
+                      <td className="px-3 py-2 text-right">{fmtBRL(row.valorCompra ?? 0)}</td>
+                      <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variacaoValorCompra)}`}>{getVariationLabel(row.variacaoValorCompra)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -1686,13 +1762,17 @@ export default function FaturamentoDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dataPrepared.monthlySegmentFaturamento.map((row, idx) => {
+                  {visibleMonthlySegmentFaturamento.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
                     const total = Number(row.PF ?? 0) + Number(row.PJ ?? 0) + Number(row.PUBLICO ?? 0);
                     return (
                       <tr
                         key={`seg-fat-${row.mes}`}
-                        className={`odd:bg-white even:bg-slate-50/60 cursor-pointer ${selectedMonth === idx + 1 ? 'bg-emerald-50' : ''}`}
-                        onClick={() => setSelectedMonth((prev) => (prev === idx + 1 ? 0 : idx + 1))}
+                        className={`odd:bg-white even:bg-slate-50/60 cursor-pointer ${selectedMonth === monthValue ? 'bg-emerald-50' : ''}`}
+                        onClick={() => {
+                          if (monthValue <= 0) return;
+                          setSelectedMonth((prev) => (prev === monthValue ? 0 : monthValue));
+                        }}
                       >
                         <td className="px-3 py-2">{row.mes}</td>
                         <td className="px-3 py-2 text-right">{fmtBRL(Number(row.PF ?? 0))}</td>
@@ -1718,16 +1798,20 @@ export default function FaturamentoDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dataPrepared.monthlySegmentTicket.map((row, idx) => {
-                    const monthBase = dataPrepared.monthly[idx];
+                  {visibleMonthlySegmentTicket.map((row) => {
+                    const monthValue = getMonthValueByLabel(row.mes);
+                    const monthBase = monthValue > 0 ? dataPrepared.monthly[monthValue - 1] : undefined;
                     const ticketGeral = Number(monthBase?.qtVeiculos ?? 0) > 0
                       ? Number(monthBase?.faturamentoEmitido ?? 0) / Number(monthBase?.qtVeiculos ?? 0)
                       : 0;
                     return (
                       <tr
                         key={`seg-ticket-${row.mes}`}
-                        className={`odd:bg-white even:bg-slate-50/60 cursor-pointer ${selectedMonth === idx + 1 ? 'bg-emerald-50' : ''}`}
-                        onClick={() => setSelectedMonth((prev) => (prev === idx + 1 ? 0 : idx + 1))}
+                        className={`odd:bg-white even:bg-slate-50/60 cursor-pointer ${selectedMonth === monthValue ? 'bg-emerald-50' : ''}`}
+                        onClick={() => {
+                          if (monthValue <= 0) return;
+                          setSelectedMonth((prev) => (prev === monthValue ? 0 : monthValue));
+                        }}
                       >
                         <td className="px-3 py-2">{row.mes}</td>
                         <td className="px-3 py-2 text-right">{fmtBRL(Number(row.PF ?? 0))}</td>
@@ -1740,113 +1824,73 @@ export default function FaturamentoDashboard() {
                 </tbody>
               </table>
             )}
-          </div>
-
-          <div className="border rounded-lg p-3 bg-slate-50/70">
-            <div className="mb-2">
-              <h4 className="text-sm font-semibold text-slate-900">Tabela de Evolução</h4>
-              <p className="text-xs text-slate-500">Exibe os meses do período selecionado e a variação do período.</p>
-            </div>
-
-            <div className="overflow-auto">
-              <table className="min-w-full table-auto text-sm">
-                <thead className="bg-white">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Indicador</th>
-                    {evolucaoMensal.periodLabels.map((label, idx) => (
-                      <Fragment key={`headers-${label}-${idx}`}>
-                        <th className="px-3 py-2 text-right">{label}</th>
-                        <th className="px-3 py-2 text-right text-xs font-normal text-slate-400">Var %</th>
-                      </Fragment>
+            {detailTab === 'segmento' && (
+              <div className="p-4">
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-sm font-semibold text-slate-900">Evolução por Segmento</h5>
+                    <div className="text-xs text-slate-500">Período: {comparisonWindow.periodMonthLabels.join(' • ')}</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                    {SEGMENTS.map((segment) => (
+                      <span key={`legend-inline-${segment.key}`} className="inline-flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: segment.color }} />
+                        {segment.label}
+                      </span>
                     ))}
-                    <th className="px-3 py-2 text-right">Var % Período</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {evolucaoMensal.rows.map((row) => (
-                    <tr key={row.indicador} className="odd:bg-white even:bg-slate-50/70">
-                      <td className="px-3 py-2 font-medium text-slate-700">{row.indicador}</td>
-                      {row.valuesPeriodo.map((value, idx) => (
-                        <Fragment key={`${row.indicador}-${idx}`}>
-                          <td className="px-3 py-2 text-right">{formatEvolutionValue(value, row.kind)}</td>
-                          <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variationsMoM[idx])}`}>
-                            {getVariationLabel(row.variationsMoM[idx])}
-                          </td>
-                        </Fragment>
-                      ))}
-                      <td className={`px-3 py-2 text-right font-semibold ${getVariationClass(row.variacaoPct)}`}>
-                        {getVariationLabel(row.variacaoPct)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+                  </div>
+                </div>
 
-        <p className="mt-2 text-xs text-slate-500">Visualização em janela de 6 meses com rolagem horizontal. Clique nas barras ou nos meses da tabela para filtrar, no estilo Power BI.</p>
-      </div>
-
-      <div className="bg-white border rounded-xl p-3 space-y-4">
-        <div className="space-y-2">
-          <h3 className="text-base font-semibold text-slate-900">Tabela de Evolução por Segmento</h3>
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-            {SEGMENTS.map((segment) => (
-              <span key={`legend-${segment.key}`} className="inline-flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: segment.color }} />
-                {segment.label}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <section className="space-y-2">
-          <div className="overflow-auto border rounded-lg">
-            <table className="min-w-full table-auto text-sm">
-              <thead className="bg-white">
-                <tr>
-                  <th className="px-3 py-2 text-left">Indicador</th>
-                  {evolucaoSegmento.periodLabels.map((label, idx) => (
-                    <Fragment key={`seg-head-${label}-${idx}`}>
-                      <th className="px-3 py-2 text-right">{label}</th>
-                      <th className="px-3 py-2 text-right text-xs font-normal text-slate-400">Var %</th>
-                    </Fragment>
-                  ))}
-                  <th className="px-3 py-2 text-right">Var % Período</th>
-                </tr>
-              </thead>
-              <tbody>
-                {evolucaoSegmento.rows.map((row, idx) => (
-                  <Fragment key={`seg-frag-${row.segment}-${idx}`}>
-                    {idx % 3 === 0 && (
-                      <tr className="bg-slate-100/80 border-y border-slate-300">
-                        <td className="px-3 py-2 font-semibold" style={{ color: row.color }} colSpan={1 + (evolucaoSegmento.periodLabels.length * 2) + 1}>
-                          {row.segmentLabel}
-                        </td>
+                <div className="overflow-auto border rounded-lg">
+                  <table className="min-w-full table-auto text-sm">
+                    <thead className="bg-white">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Indicador</th>
+                        {evolucaoSegmento.periodLabels.map((label, idx) => (
+                          <Fragment key={`seg-head-inline-${label}-${idx}`}>
+                            <th className="px-3 py-2 text-right">{label}</th>
+                            <th className="px-3 py-2 text-right text-xs font-normal text-slate-400">Var %</th>
+                          </Fragment>
+                        ))}
+                        <th className="px-3 py-2 text-right">Var % Período</th>
                       </tr>
-                    )}
-                    <tr className="odd:bg-white even:bg-slate-50/70">
-                      <td className="px-3 py-2 font-medium text-slate-700">{row.label}</td>
-                      {row.valuesPeriodo.map((value, valueIdx) => (
-                        <Fragment key={`seg-row-${row.segment}-${idx}-${valueIdx}`}>
-                          <td className="px-3 py-2 text-right">{formatEvolutionValue(value, row.kind)}</td>
-                          <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variationsMoM[valueIdx])}`}>
-                            {getVariationLabel(row.variationsMoM[valueIdx])}
-                          </td>
+                    </thead>
+                    <tbody>
+                      {evolucaoSegmento.rows.map((row, idx) => (
+                        <Fragment key={`seg-frag-inline-${row.segment}-${idx}`}>
+                          {idx % 3 === 0 && (
+                            <tr className="bg-slate-100/80 border-y border-slate-300">
+                              <td className="px-3 py-2 font-semibold" style={{ color: row.color }} colSpan={1 + (evolucaoSegmento.periodLabels.length * 2) + 1}>
+                                {row.segmentLabel}
+                              </td>
+                            </tr>
+                          )}
+                          <tr className="odd:bg-white even:bg-slate-50/70">
+                            <td className="px-3 py-2 font-medium text-slate-700">{row.label}</td>
+                            {row.valuesPeriodo.map((value, valueIdx) => (
+                              <Fragment key={`seg-row-inline-${row.segment}-${idx}-${valueIdx}`}>
+                                <td className="px-3 py-2 text-right">{formatEvolutionValue(value, row.kind)}</td>
+                                <td className={`px-3 py-2 text-right text-xs ${getVariationClass(row.variationsMoM[valueIdx])}`}>
+                                  {getVariationLabel(row.variationsMoM[valueIdx])}
+                                </td>
+                              </Fragment>
+                            ))}
+                            <td className={`px-3 py-2 text-right font-semibold ${getVariationClass(row.variacaoPct)}`}>
+                              {getVariationLabel(row.variacaoPct)}
+                            </td>
+                          </tr>
                         </Fragment>
                       ))}
-                      <td className={`px-3 py-2 text-right font-semibold ${getVariationClass(row.variacaoPct)}`}>
-                        {getVariationLabel(row.variacaoPct)}
-                      </td>
-                    </tr>
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
-        </section>
+        </div>
       </div>
+
+      
 
       <div className="bg-white border rounded-xl p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1881,8 +1925,8 @@ export default function FaturamentoDashboard() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Top 10 Clientes</p>
-                <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Clientes (filtrados)</p>
+                <div className="max-h-64 overflow-auto space-y-1.5">
                   {giroContratos.iniciados.topClientes.length === 0 && (
                     <p className="text-xs text-slate-500">Sem contratos iniciados para o período selecionado.</p>
                   )}
@@ -1923,8 +1967,8 @@ export default function FaturamentoDashboard() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Top 10 Clientes</p>
-                <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Clientes (filtrados)</p>
+                <div className="max-h-64 overflow-auto space-y-1.5">
                   {giroContratos.encerrados.topClientes.length === 0 && (
                     <p className="text-xs text-slate-500">Sem contratos encerrados para o período selecionado.</p>
                   )}
@@ -1982,7 +2026,7 @@ export default function FaturamentoDashboard() {
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-slate-100 border-t border-slate-200">
+            <tfoot className="bg-slate-100 border-t border-slate-200 sticky bottom-0 z-10">
               <tr>
                 <td colSpan={5} className="px-3 py-2 text-sm font-semibold text-slate-700">Totalizador</td>
                 <td className="px-3 py-2 text-right text-sm font-semibold text-slate-700">{fmtNumber(noteDetailsCount)} notas</td>

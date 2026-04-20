@@ -26,6 +26,7 @@ import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import FleetIdleDashboard from '@/pages/analytics/FleetIdleDashboard';
 import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
+import ContractsLocacaoDashboard from '@/pages/analytics/ContractsLocacaoDashboard';
 import AnaliseContrato from '@/pages/analytics/AnaliseContrato';
 import ContractTerminationDashboard from '@/pages/analytics/ContractTerminationDashboard';
 import ContractLifecycleDashboard from '@/pages/analytics/ContractLifecycleDashboard';
@@ -127,6 +128,7 @@ function App() {
                 <Route path="frota-idle" element={<AnalyticsProtectedRoute pageKey="frota-idle"><FleetIdleDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="frota-metodologia" element={<AnalyticsProtectedRoute pageKey="frota-metodologia"><FleetMethodologyPage /></AnalyticsProtectedRoute>} />
                 <Route path="contratos" element={<AnalyticsProtectedRoute pageKey="contratos"><ContractsDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="contratos-locacao" element={<AnalyticsProtectedRoute pageKey="contratos"><ContractsLocacaoDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="analise-contrato" element={<AnalyticsProtectedRoute pageKey="analise-contrato"><AnaliseContrato /></AnalyticsProtectedRoute>} />
                 <Route path="previsao-encerramento" element={<AnalyticsProtectedRoute pageKey="previsao-encerramento"><ContractTerminationDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="abertura-encerramento" element={<AnalyticsProtectedRoute pageKey="abertura-encerramento"><ContractLifecycleDashboard /></AnalyticsProtectedRoute>} />

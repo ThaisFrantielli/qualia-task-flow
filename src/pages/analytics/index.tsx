@@ -101,6 +101,12 @@ export default function AnalyticsIndex() {
                 desc: 'Contratos de Locação, Estratégias e Projeções',
               },
               {
+                to: '/analytics/contratos-locacao',
+                icon: <BarChart3 className="w-5 h-5" />,
+                title: 'Contratos Locação 360',
+                desc: 'Abertos, encerrados, vencimentos, durações, previsão de encerramento e ticket vigente',
+              },
+              {
                 to: '/analytics/analise-contrato',
                 icon: <BarChart3 className="w-5 h-5" />,
                 title: 'Análise de Contrato',
