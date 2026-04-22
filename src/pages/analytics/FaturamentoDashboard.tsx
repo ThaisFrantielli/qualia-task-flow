@@ -1297,8 +1297,25 @@ export default function FaturamentoDashboard() {
       };
     };
 
-    const iniciadosRows = contratos.filter((row) => inSelectedPeriod(getStartDate(row)));
-    const encerradosRows = contratos.filter((row) => inSelectedPeriod(getEndDate(row)));
+    const isCancelledContract = (row: Row): boolean => {
+      const status = String(
+        row.SituacaoContrato
+        ?? row.Situacao
+        ?? row.Status
+        ?? row.StatusContrato
+        ?? row.situacao
+        ?? row.situacao_contrato
+        ?? row.StatusContratoLocacao
+        ?? ''
+      ).toLowerCase();
+
+      if (status.includes('cancel')) return true;
+      if (row.CanceladoPor || row.CanceladoEm || row.DataCancelamento || row.Cancelamento) return true;
+      return false;
+    };
+
+    const iniciadosRows = contratos.filter((row) => !isCancelledContract(row) && inSelectedPeriod(getStartDate(row)));
+    const encerradosRows = contratos.filter((row) => !isCancelledContract(row) && inSelectedPeriod(getEndDate(row)));
 
     return {
       periodLabel: comparisonWindow.periodMonthLabels.join(' • '),
