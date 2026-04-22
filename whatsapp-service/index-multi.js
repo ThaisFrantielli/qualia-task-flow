@@ -69,6 +69,7 @@ if (!SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const circuitBreakers = new Map();
 const inFlightMessages = new Set();
+const recentlyHandledInboundEvents = new Map();
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_COOLDOWN_MS = 60 * 1000;
 
@@ -253,6 +254,21 @@ function extractWhatsAppUser(rawId) {
     return user.replace(/\D/g, '');
 }
 
+function shouldHandleInboundEvent(messageId) {
+    if (!messageId) return false;
+    const now = Date.now();
+    for (const [id, handledAt] of recentlyHandledInboundEvents.entries()) {
+        if (now - handledAt > 5 * 60 * 1000) {
+            recentlyHandledInboundEvents.delete(id);
+        }
+    }
+    if (recentlyHandledInboundEvents.has(messageId)) {
+        return false;
+    }
+    recentlyHandledInboundEvents.set(messageId, now);
+    return true;
+}
+
 function normalizeWhatsAppSendError(error) {
     const raw = error?.message || String(error || 'Send failed');
     const lowered = raw.toLowerCase();
@@ -410,18 +426,21 @@ async function processOutgoingMessage(msg) {
                 .eq('id', msg.conversation_id);
         }
 
+        let sentMessage;
+
         if (msg.media_url) {
             const media = await MessageMedia.fromUrl(msg.media_url);
             if (msg.file_name) media.filename = msg.file_name;
-            await client.sendMessage(resolvedId, media, { caption: msg.content || '', sendSeen: false });
+            sentMessage = await client.sendMessage(resolvedId, media, { caption: msg.content || '', sendSeen: false });
         } else {
-            await client.sendMessage(resolvedId, msg.content || '', { sendSeen: false });
+            sentMessage = await client.sendMessage(resolvedId, msg.content || '', { sendSeen: false });
         }
 
         await supabase
             .from('whatsapp_messages')
             .update({
                 status: 'sent',
+                whatsapp_message_id: sentMessage?.id?._serialized || msg.whatsapp_message_id || null,
                 retry_count: 0,
                 next_retry_at: null,
                 dead_letter: false,
