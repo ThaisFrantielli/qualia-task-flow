@@ -140,7 +140,7 @@ serve(async (req: Request) => {
         instance_id,
         sender_type: 'agent',
         sender_id: userId,
-        content: message || (mediaUrl ? 'Media sent' : ''),
+        content: message || (mediaUrl ? '[Mídia]' : ''),
         media_url: mediaUrl,
         media_type: mediaType,
         file_name: fileName,
@@ -211,7 +211,7 @@ serve(async (req: Request) => {
       await supabase
         .from('whatsapp_conversations')
         .update({
-          last_message: message || (mediaUrl ? 'Media sent' : ''),
+          last_message: message || (mediaUrl ? '[Mídia]' : ''),
           last_message_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

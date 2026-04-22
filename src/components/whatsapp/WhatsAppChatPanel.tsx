@@ -247,8 +247,11 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         .insert({
           conversation_id: conversation.id,
           instance_id: instanceId,
-          content: '',
+          content: '[Mídia]',
           has_media: true,
+          media_url: publicUrl,
+          media_type: file.type,
+          file_name: file.name,
           metadata: {
             media_url: publicUrl,
             media_type: file.type,
@@ -398,8 +401,11 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         .insert({
           conversation_id: conversation.id,
           instance_id: instanceId,
-          content: '',
+          content: '[Áudio]',
           has_media: true,
+          media_url: publicUrl,
+          media_type: mimeType,
+          file_name: fileName,
           metadata: {
             media_url: publicUrl,
             media_type: mimeType,
@@ -464,29 +470,33 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
     setIsSending(true);
     sendLockRef.current = true;
-    try {
-      // Optimistic UI: add a local pending message immediately
-      const tempId = `local-${Date.now()}`;
-      const tempMsg = {
-        id: tempId,
-        conversation_id: conversation.id,
-        instance_id: instanceId,
-        content: newMessage.trim(),
-        message_type: 'text',
-        sender_type: 'agent',
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
-      setLocalPendingMessages(prev => [...prev, tempMsg]);
-      setNewMessage('');
+    const messageContent = newMessage.trim();
+    setNewMessage('');
 
-      // Insert message in DB
+    // Optimistic UI: add a local pending message immediately with a temp ID
+    const tempId = `local-${Date.now()}`;
+    const tempMsg = {
+      id: tempId,
+      conversation_id: conversation.id,
+      instance_id: instanceId,
+      content: messageContent,
+      message_type: 'text',
+      sender_type: 'agent',
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+    setLocalPendingMessages(prev => [...prev, tempMsg]);
+
+    try {
+      // Insert message in DB first — this fires the realtime INSERT event.
+      // We immediately promote the temp entry to the real DB id so that
+      // combinedMessages deduplication removes the duplicate.
       const { data: messageData, error: insertError } = await supabase
         .from('whatsapp_messages')
         .insert({
           conversation_id: conversation.id,
           instance_id: instanceId,
-          content: tempMsg.content,
+          content: messageContent,
           message_type: 'text',
           sender_type: 'agent',
           status: 'pending'
@@ -496,11 +506,19 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
       if (insertError) throw insertError;
 
+      // Replace the temp entry with the real DB id so the realtime event
+      // for this same id will be deduped by combinedMessages.
+      setLocalPendingMessages(prev =>
+        prev.map(m => m.id === tempId ? { ...messageData } : m)
+      );
+
+      // whatsapp-send receives the existing message_id and only UPDATES it
+      // (no second INSERT), so no duplication happens from this side.
       const { error: sendError } = await supabase.functions.invoke('whatsapp-send', {
         body: {
           instance_id: instanceId,
           phoneNumber: conversation.customer_phone,
-          message: tempMsg.content,
+          message: messageContent,
           conversationId: conversation.id,
           message_id: messageData.id,
         }
@@ -510,14 +528,15 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         throw new Error(toFriendlySendError(await getFunctionErrorMessage(sendError)));
       }
 
-      // Refresh list and remove local pending placeholder
-      refetch();
-      setLocalPendingMessages(prev => prev.filter(m => m.id !== tempId));
-      toast({
-        title: 'Mensagem enviada',
-        description: 'Sua mensagem foi enviada com sucesso!'
-      });
+      // The realtime subscription in useWhatsAppMessages will push the
+      // real message into `messages`. Remove the local optimistic entry
+      // so combinedMessages shows only one copy.
+      setLocalPendingMessages(prev => prev.filter(m => m.id !== messageData.id));
+
     } catch (error: any) {
+      // On error, remove the optimistic message and restore the input
+      setLocalPendingMessages(prev => prev.filter(m => m.id !== tempId && !String(m.id).startsWith('local-')));
+      setNewMessage(messageContent);
       console.error('Error sending message:', error);
       toast({
         title: 'Erro ao enviar',
@@ -677,10 +696,20 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
     );
   }
 
-  // Combine backend messages with local optimistic pending messages and group by date
-  const combinedMessages = [...(messages || []), ...localPendingMessages]
-    .slice()
-    .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+  // Combine backend messages with local optimistic pending messages.
+  // Deduplicate by ID so that when the realtime event fires for a message
+  // already in localPendingMessages, only one copy is rendered.
+  const combinedMessages = (() => {
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    // messages (from DB/realtime) take precedence over local optimistic copies
+    for (const msg of [...(messages || []), ...localPendingMessages]) {
+      if (!msg?.id || seen.has(String(msg.id))) continue;
+      seen.add(String(msg.id));
+      merged.push(msg);
+    }
+    return merged.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+  })();
 
   const groupedMessages: { date: string; messages: typeof messages }[] = [];
   combinedMessages.forEach(msg => {

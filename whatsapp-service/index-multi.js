@@ -462,9 +462,31 @@ async function processOutgoingMessage(msg) {
         let sentMessage;
 
         if (msg.media_url) {
-            const media = await MessageMedia.fromUrl(msg.media_url);
-            if (msg.file_name) media.filename = msg.file_name;
-            sentMessage = await client.sendMessage(resolvedId, media, { caption: msg.content || '', sendSeen: false });
+            try {
+                // Download manual para evitar bugs do MessageMedia.fromUrl com o content-type
+                const response = await axios.get(msg.media_url, { responseType: 'arraybuffer' });
+                const mimeType = response.headers['content-type'] || msg.media_type || 'application/octet-stream';
+                const fileBase64 = Buffer.from(response.data, 'binary').toString('base64');
+                const media = new MessageMedia(mimeType, fileBase64, msg.file_name || 'arquivo');
+
+                const options = { sendSeen: false };
+                
+                // Mídias de áudio (Ptt)
+                if (msg.message_type === 'audio' || mimeType.startsWith('audio/')) {
+                    options.sendAudioAsVoice = true;
+                } else if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) {
+                    // Se não for imagem/video/audio, manda forçado como documento
+                    options.sendMediaAsDocument = true;
+                    if (msg.content && msg.content !== '[Mídia]') options.caption = msg.content;
+                } else {
+                    if (msg.content && msg.content !== '[Mídia]') options.caption = msg.content;
+                }
+
+                sentMessage = await client.sendMessage(resolvedId, media, options);
+            } catch (mediaDownloadError) {
+                console.error(`Error downloading or sending media:`, mediaDownloadError);
+                throw mediaDownloadError;
+            }
         } else {
             sentMessage = await client.sendMessage(resolvedId, msg.content || '', { sendSeen: false });
         }
@@ -781,6 +803,44 @@ async function handleIncomingMessage(instanceId, client, message) {
                 headers['x-webhook-secret'] = process.env.WHATSAPP_WEBHOOK_SECRET;
             }
 
+            let mediaUrl = null;
+            let fileType = null;
+            let localFileName = null;
+
+            if (message.hasMedia) {
+                try {
+                    const media = await message.downloadMedia();
+                    if (media && media.data) {
+                        const base64Data = media.data;
+                        const buffer = Buffer.from(base64Data, 'base64');
+                        const ext = media.mimetype.split('/')[1]?.split(';')[0] || 'bin';
+                        const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                        const filePath = `${instanceId}/inbound/${uniqueName}`;
+
+                        const { error: uploadError } = await supabase.storage
+                            .from('whatsapp-media')
+                            .upload(filePath, buffer, {
+                                contentType: media.mimetype
+                            });
+
+                        if (!uploadError) {
+                            const { data: { publicUrl } } = supabase.storage
+                                .from('whatsapp-media')
+                                .getPublicUrl(filePath);
+                            
+                            mediaUrl = publicUrl;
+                            fileType = media.mimetype;
+                            localFileName = media.filename || uniqueName;
+                            console.log(`[${instanceId}] ✓ Media downloaded and uploaded: ${mediaUrl}`);
+                        } else {
+                            console.error(`[${instanceId}] Failed to upload media:`, uploadError);
+                        }
+                    }
+                } catch (mediaError) {
+                    console.error(`[${instanceId}] Failed to download media from whatsapp:`, mediaError);
+                }
+            }
+
             await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
                 instance_id: instanceId,
                 from: message.from,
@@ -790,6 +850,9 @@ async function handleIncomingMessage(instanceId, client, message) {
                 timestamp: message.timestamp,
                 type: message.type,
                 messageId,
+                media_url: mediaUrl,
+                media_type: fileType,
+                file_name: localFileName
             }, { headers, timeout: 15000 });
 
             console.log(`[${instanceId}] ✓ Forwarded to webhook (fromMe=${fromMe})`);

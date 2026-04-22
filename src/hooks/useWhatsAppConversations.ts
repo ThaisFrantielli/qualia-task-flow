@@ -171,12 +171,60 @@ export function useWhatsAppMessages(conversationId?: string) {
     fetchMessages();
   }, [fetchMessages]);
 
+  // Polling fallback: runs every 8 s while the tab is visible.
+  // This guarantees phone messages appear even when Realtime is delayed,
+  // the webhook isn't configured, or the connection drops.
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const POLL_INTERVAL_MS = 8_000;
+    let timerId: ReturnType<typeof setTimeout>;
+
+    const schedulePoll = () => {
+      timerId = setTimeout(async () => {
+        // Skip if tab is hidden to avoid unnecessary requests
+        if (document.visibilityState === 'hidden') {
+          schedulePoll();
+          return;
+        }
+
+        try {
+          const { data } = await supabase
+            .from('whatsapp_messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+
+          if (data) {
+            setMessages(prev => {
+              const next = dedupeMessagesById([...prev, ...(data as WhatsAppMessage[])]);
+              // Only update state when there are actual new messages
+              if (next.length !== prev.length) return next;
+              return prev;
+            });
+          }
+        } catch {
+          // Silently ignore poll errors — Realtime is the primary channel
+        }
+
+        schedulePoll();
+      }, POLL_INTERVAL_MS);
+    };
+
+    schedulePoll();
+
+    return () => clearTimeout(timerId);
+  }, [conversationId]);
+
+
   // Real-time subscription for messages
   useEffect(() => {
     if (!conversationId) return;
 
+    // Use a unique channel name per conversation so that switching conversations
+    // does not reuse a stale channel with the wrong server-side filter.
     const channel = supabase
-      .channel('whatsapp-messages-changes')
+      .channel(`whatsapp-messages-changes-${conversationId}`)
       .on(
         'postgres_changes',
         {

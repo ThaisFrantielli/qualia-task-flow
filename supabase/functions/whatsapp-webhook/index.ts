@@ -46,10 +46,13 @@ serve(async (req: Request) => {
       type: messageType = 'text',
     } = payload
 
-    console.log('=== WhatsApp Webhook ===')
-    console.log({ instance_id, from, to, fromMe, messageId, len: (body || '').length })
+    // === LOG DETALHADO PARA DIAGNÓSTICO ===
+    console.log('=== WhatsApp Webhook RECEIVED ===')
+    console.log('Full payload keys:', Object.keys(payload))
+    console.log('Parsed fields:', JSON.stringify({ instance_id, from, to, fromMe, messageId, messageType, bodyLen: (body || '').length, bodyPreview: (body || '').slice(0, 80) }))
 
     if (!instance_id || (!from && !to)) {
+      console.warn('REJECTED: missing instance_id or from/to. instance_id=', instance_id, 'from=', from, 'to=', to)
       return new Response(
         JSON.stringify({ error: 'instance_id and from (or to) are required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
@@ -65,6 +68,8 @@ serve(async (req: Request) => {
     const counterpartyJid = fromMe ? (to || from) : from
     const counterpartyJidStr = String(counterpartyJid || '').toLowerCase()
 
+    console.log('counterpartyJid:', counterpartyJid, '| normalized str:', counterpartyJidStr)
+
     // Ignora grupos, broadcasts, status
     if (
       !counterpartyJidStr ||
@@ -72,6 +77,7 @@ serve(async (req: Request) => {
       counterpartyJidStr.includes('@broadcast') ||
       counterpartyJidStr.includes('status@')
     ) {
+      console.log('IGNORED: non-direct-message JID:', counterpartyJidStr)
       return new Response(
         JSON.stringify({ success: true, ignored: true, reason: 'non-direct-message' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -79,13 +85,29 @@ serve(async (req: Request) => {
     }
 
     const phoneNumber = normalizePhone(counterpartyJidStr)
+    console.log('phoneNumber (normalized):', phoneNumber, 'length:', phoneNumber.length)
+
+    // Função auxiliar para considerar variantes do nono dígito do Brasil
+    const getPhoneVariants = (phone: string): string[] => {
+      const variants = [phone];
+      if (phone.startsWith('55') && phone.length === 12) {
+        variants.push(phone.slice(0, 4) + '9' + phone.slice(4));
+      } else if (phone.startsWith('55') && phone.length === 13) {
+        variants.push(phone.slice(0, 4) + phone.slice(5));
+      }
+      return variants;
+    }
+
+    const phoneVariants = getPhoneVariants(phoneNumber);
 
     if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+      console.warn('IGNORED: invalid-phone length:', phoneNumber.length, 'raw:', counterpartyJidStr)
       return new Response(
-        JSON.stringify({ success: true, ignored: true, reason: 'invalid-phone' }),
+        JSON.stringify({ success: true, ignored: true, reason: 'invalid-phone', phone: phoneNumber }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       )
     }
+
 
     // Dedup por whatsapp_message_id antes de qualquer trabalho extra
     if (messageId) {
@@ -103,25 +125,39 @@ serve(async (req: Request) => {
     }
 
     // Buscar conversa existente (por whatsapp_number normalizado, dentro da instância)
+    console.log('Looking up conversation: whatsapp_number in', phoneVariants, 'instance_id=', instance_id)
     let { data: conversation } = await supabase
       .from('whatsapp_conversations')
       .select('*')
-      .eq('whatsapp_number', phoneNumber)
+      .in('whatsapp_number', phoneVariants)
       .eq('instance_id', instance_id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
+
+    if (conversation) {
+      console.log('Found conversation by whatsapp_number. id=', conversation.id)
+    }
 
     // Fallback: tenta por customer_phone para conversas legadas
     if (!conversation) {
+      console.log('Not found by whatsapp_number. Trying customer_phone fallback...')
       const { data: legacy } = await supabase
         .from('whatsapp_conversations')
         .select('*')
-        .eq('customer_phone', phoneNumber)
+        .in('customer_phone', phoneVariants)
         .eq('instance_id', instance_id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
-      if (legacy) conversation = legacy
+      if (legacy) {
+        conversation = legacy
+        console.log('Found conversation by customer_phone fallback. id=', legacy.id)
+      }
     }
 
     if (!conversation) {
+      console.log('No existing conversation found. Creating new one for phone=', phoneNumber, 'instance=', instance_id)
       // Criar nova conversa
       const { data: newConv, error: createError } = await supabase
         .from('whatsapp_conversations')
@@ -151,8 +187,10 @@ serve(async (req: Request) => {
           throw createError
         }
         conversation = retryConv
+        console.log('Race condition resolved, using existing conversation id=', retryConv.id)
       } else {
         conversation = newConv
+        console.log('Created new conversation id=', newConv?.id)
       }
     } else {
       // Atualizar conversa existente
@@ -175,16 +213,74 @@ serve(async (req: Request) => {
     const sender_type = fromMe ? 'agent' : 'customer'
     const status = fromMe ? 'sent' : 'received'
 
+    // Para mensagens fromMe: tentar encontrar um registro 'pending' sem whatsapp_message_id
+    // que foi pré-criado pelo whatsapp-send. Se encontrado, apenas atualizar em vez de inserir,
+    // evitando duplicatas quando o bridge devolve o webhook para mensagens já pré-inseridas.
+    if (fromMe && conversation?.id && body) {
+      const { data: pendingMsg } = await supabase
+        .from('whatsapp_messages')
+        .select('id')
+        .eq('conversation_id', conversation.id)
+        .eq('sender_type', 'agent')
+        .eq('status', 'pending')
+        .is('whatsapp_message_id', null)
+        .eq('content', body)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (pendingMsg?.id) {
+        console.log('fromMe dedup: updating pending message', pendingMsg.id)
+        await supabase
+          .from('whatsapp_messages')
+          .update({
+            status: 'sent',
+            whatsapp_message_id: messageId || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pendingMsg.id)
+
+        // Conversa já foi atualizada acima, pode retornar.
+        return new Response(
+          JSON.stringify({ success: true, deduped: true, matched_pending: pendingMsg.id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
+    }
+
+    // Mapeamento de tipos para garantir compatibilidade com constraint do banco
+    let mappedMessageType = messageType || 'text'
+    if (mappedMessageType === 'chat') mappedMessageType = 'text'
+    if (mappedMessageType === 'ptt') mappedMessageType = 'audio'
+
+    // Se a mensagem for puramente mídia e não tiver texto associado,
+    // o banco rejeita null, então colocamos uma representação textual.
+    const messageContent = body || (mappedMessageType === 'audio' ? '[Áudio]' : '[Mídia]')
+
+    // Extrair dados da mídia do payload
+    const { media_url, media_type, file_name } = payload;
+    const has_media = Boolean(media_url);
+    const metadata = has_media ? {
+      media_url,
+      media_type,
+      file_name
+    } : null;
+
     const { error: messageError } = await supabase
       .from('whatsapp_messages')
       .insert({
         conversation_id: conversation.id,
         instance_id,
         sender_type,
-        content: body || null,
-        message_type: messageType || 'text',
+        content: messageContent,
+        message_type: mappedMessageType,
         status,
-        whatsapp_message_id: messageId
+        whatsapp_message_id: messageId,
+        has_media,
+        media_url,
+        media_type,
+        file_name,
+        metadata
       })
 
     if (messageError) {
@@ -283,7 +379,8 @@ serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error'
+        error: error instanceof Error ? error.message : JSON.stringify(error),
+        stack: error instanceof Error ? error.stack : undefined
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
