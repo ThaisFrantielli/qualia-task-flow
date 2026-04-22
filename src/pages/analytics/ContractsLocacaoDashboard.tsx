@@ -7,7 +7,7 @@ import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import { AnalyticsLayout, AnalyticsSection, AnalyticsTabs } from '@/components/analytics/AnalyticsLayout';
 import { DateRangePicker } from '@/components/analytics/DateRangePicker';
 import { KPIGrid, KPICard } from '@/components/analytics/charts/KPICard';
-import { DistributionChart } from '@/components/analytics/charts/DistributionChart';
+import { DistributionList } from '@/components/analytics/charts/DistributionChart';
 import { TimeSeriesChart } from '@/components/analytics/charts/TimeSeriesChart';
 import { fmtBRL, fmtInteger, monthLabel } from '@/lib/analytics/formatters';
 
@@ -808,31 +808,31 @@ export default function ContractsLocacaoDashboard() {
           </AnalyticsSection>
 
           <AnalyticsSection title="Distribuicoes" subtitle="Status e tempo de contrato">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              <DistributionChart
-                data={statusDistribution}
-                title="Status contratual"
-                subtitle="Vigente, aberto vencido, pre-inicio e encerrado"
-                formatValue={fmtInteger}
-                height={320}
-              />
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <DistributionList
+                  data={statusDistribution}
+                  title="Status contratual"
+                  formatValue={fmtInteger}
+                  showPercent={true}
+                  className="h-[320px]"
+                />
 
-              <DistributionChart
-                data={durationDistribution}
-                title="Contratos por tempo total"
-                subtitle="Faixas de duracao contratual"
-                formatValue={fmtInteger}
-                height={320}
-              />
+                <DistributionList
+                  data={durationDistribution}
+                  title="Contratos por tempo total"
+                  formatValue={fmtInteger}
+                  showPercent={true}
+                  className="h-[320px]"
+                />
 
-              <DistributionChart
-                data={remainingDistribution}
-                title="Contratos abertos por prazo restante"
-                subtitle="Faixas de vencimento"
-                formatValue={fmtInteger}
-                height={320}
-              />
-            </div>
+                <DistributionList
+                  data={remainingDistribution}
+                  title="Contratos abertos por prazo restante"
+                  formatValue={fmtInteger}
+                  showPercent={true}
+                  className="h-[320px]"
+                />
+              </div>
           </AnalyticsSection>
         </>
       )}
