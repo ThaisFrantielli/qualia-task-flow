@@ -713,20 +713,27 @@ async function handleIncomingMessage(instanceId, client, message) {
 
         console.log(`[${instanceId}] ${fromMe ? 'OUT' : 'IN '} from=${fromJid} to=${toJid} msgId=${messageId} body="${(message.body || '').slice(0, 60)}"`);
 
-        try {
-            const { data: existing, error: existError } = await supabase
-                .from('whatsapp_messages')
-                .select('id')
-                .eq('whatsapp_message_id', messageId)
-                .limit(1);
+        if (!shouldHandleInboundEvent(messageId)) {
+            console.log(`[${instanceId}] Skipping duplicate local event ${messageId}`);
+            return;
+        }
 
-            if (existError) {
-                console.error('Error checking existing whatsapp_message_id before forwarding:', existError);
-            } else if (existing && existing.length > 0) {
-                return;
+        if (fromMe) {
+            try {
+                const { data: existing, error: existError } = await supabase
+                    .from('whatsapp_messages')
+                    .select('id')
+                    .eq('whatsapp_message_id', messageId)
+                    .limit(1);
+
+                if (existError) {
+                    console.error('Error checking existing sent whatsapp_message_id:', existError);
+                } else if (existing && existing.length > 0) {
+                    return;
+                }
+            } catch (err) {
+                console.error('Unexpected error during sent-message dedup check:', err);
             }
-        } catch (err) {
-            console.error('Unexpected error during dedup check:', err);
         }
 
         console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body || '[media/no-text]'}`);
@@ -949,9 +956,13 @@ function createWhatsAppClient(instanceId, instanceName = null) {
         }
     });
 
-    // 'message_create' cobre mensagens recebidas E enviadas (fromMe).
-    // Não precisamos do 'message' separado — evita duplicações.
+    // 'message_create' cobre mensagens enviadas (fromMe). 'message' cobre respostas recebidas.
+    // O dedup local por messageId evita processamento duplo quando a lib emitir ambos.
     client.on('message_create', async (message) => {
+        await handleIncomingMessage(instanceId, client, message);
+    });
+
+    client.on('message', async (message) => {
         await handleIncomingMessage(instanceId, client, message);
     });
 
