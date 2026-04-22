@@ -328,6 +328,39 @@ async function processOutgoingMessage(msg) {
         return;
     }
 
+    try {
+        const { data: latestMessage, error: latestMessageError } = await supabase
+            .from('whatsapp_messages')
+            .select('id, status, whatsapp_message_id')
+            .eq('id', msg.id)
+            .maybeSingle();
+
+        if (latestMessageError) {
+            console.error(`Failed to reload claimed message ${msg.id}:`, latestMessageError);
+        } else if (latestMessage?.whatsapp_message_id) {
+            await supabase
+                .from('whatsapp_messages')
+                .update({
+                    status: 'sent',
+                    retry_count: 0,
+                    next_retry_at: null,
+                    dead_letter: false,
+                    failed_at: null,
+                    last_error: null,
+                    error_message: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', msg.id);
+
+            registerCircuitSuccess(msg.instance_id);
+            console.log(`Skipping resend for ${msg.id} because whatsapp_message_id already exists (${latestMessage.whatsapp_message_id})`);
+            inFlightMessages.delete(msg.id);
+            return;
+        }
+    } catch (reloadError) {
+        console.error(`Unexpected reload error for message ${msg.id}:`, reloadError);
+    }
+
     if (isCircuitOpen(msg.instance_id)) {
         const state = getCircuitState(msg.instance_id);
         const waitMs = Math.max(0, state.openUntil - Date.now());
@@ -1229,6 +1262,28 @@ app.post('/send-message', async (req, res) => {
         // Check if connected
         if (!client.info || !client.info.wid) {
              return res.status(400).json({ error: 'Instance not connected' });
+        }
+
+        if (message_id) {
+            try {
+                const { data: existingMessage, error: existingMessageError } = await supabase
+                    .from('whatsapp_messages')
+                    .select('id, status, whatsapp_message_id')
+                    .eq('id', message_id)
+                    .maybeSingle();
+
+                if (existingMessageError) {
+                    console.error('Failed to check message dedup before direct send:', existingMessageError);
+                } else if (existingMessage?.status === 'sent' && existingMessage?.whatsapp_message_id) {
+                    return res.json({
+                        success: true,
+                        deduped: true,
+                        whatsapp_message_id: existingMessage.whatsapp_message_id,
+                    });
+                }
+            } catch (dedupError) {
+                console.error('Unexpected dedup check error before direct send:', dedupError);
+            }
         }
 
         // Resolve WhatsApp ID using getNumberId (handles Brazilian 9th digit)

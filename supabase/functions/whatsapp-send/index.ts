@@ -155,15 +155,48 @@ serve(async (req: Request) => {
       }
 
       if (message_id) {
-        const { error: updateMessageError } = await supabase
+        const { data: existingMessage, error: existingMessageError } = await supabase
           .from('whatsapp_messages')
-          .update({
+          .select('id, status, whatsapp_message_id')
+          .eq('id', message_id)
+          .maybeSingle()
+
+        if (existingMessageError) throw existingMessageError
+        if (!existingMessage) {
+          throw new Error('message_id not found')
+        }
+
+        queuedMessageId = existingMessage.id || message_id
+
+        const currentStatus = String(existingMessage.status || '').toLowerCase()
+        const hasWhatsappMessageId = Boolean(existingMessage.whatsapp_message_id)
+        const alreadyFinalized = hasWhatsappMessageId && ['sent', 'delivered', 'read', 'received'].includes(currentStatus)
+
+        if (!alreadyFinalized) {
+          const updateData: Record<string, unknown> = {
             ...insertData,
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', message_id)
+          }
 
-        if (updateMessageError) throw updateMessageError
+          if (currentStatus === 'failed' || currentStatus === 'pending') {
+            updateData.status = 'pending'
+            updateData.retry_count = 0
+            updateData.next_retry_at = null
+            updateData.failed_at = null
+            updateData.dead_letter = false
+            updateData.last_error = null
+            updateData.error_message = null
+          } else {
+            delete updateData.status
+          }
+
+          const { error: updateMessageError } = await supabase
+            .from('whatsapp_messages')
+            .update(updateData)
+            .eq('id', message_id)
+
+          if (updateMessageError) throw updateMessageError
+        }
       } else {
         const { data: insertedMessage, error: messageError } = await supabase
           .from('whatsapp_messages')
