@@ -473,7 +473,10 @@ async function processOutgoingMessage(msg) {
                 
                 // Mídias de áudio (Ptt)
                 if (msg.message_type === 'audio' || mimeType.startsWith('audio/')) {
-                    options.sendAudioAsVoice = true;
+                    // Sem o FFMPEG instalado no Servidor/Máquina, o "sendAudioAsVoice" faz a biblioteca causar crash ("t").
+                    // A solução contorno para Máquinas sem ffmpeg é enviar o áudio como "Documento de Mídia". O celular ainda 
+                    // poderá baixar e tocar normalmente.
+                    options.sendMediaAsDocument = true;
                 } else if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) {
                     // Se não for imagem/video/audio, manda forçado como documento
                     options.sendMediaAsDocument = true;
