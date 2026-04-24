@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState, useRef, useTransition } from 'react';
 import useBIData from '@/hooks/useBIData';
 import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
@@ -1548,6 +1548,8 @@ export default function AnaliseContrato() {
   const uiStatePersistedRef = useRef(Boolean(persistedUiStateRef.current));
 
   const [activeTab, setActiveTab] = useState<TabKey>('passagem');
+  const [isTabSwitchPending, startTabSwitchTransition] = useTransition();
+  const [isPending, startFilterTransition] = useTransition();
   const [showTabHelp, setShowTabHelp] = useState(false);
   const [showYearDetailByTab, setShowYearDetailByTab] = useState<Record<TabKey, boolean>>({
     passagem: false,
@@ -1617,6 +1619,8 @@ export default function AnaliseContrato() {
   const [maintDetailTarget, setMaintDetailTarget] = useState<(Pick<VehicleRow, 'placa'|'dataInicial'|'idLocacao'|'idComercial'|'idVeiculo'|'tipoContrato'> & { mode: DetailMode }) | null>(null);
   const resumoDetailTableRef = useRef<HTMLTableElement | null>(null);
   const [activeItemsSubTab, setActiveItemsSubTab] = useState<'resumo' | 'status' | 'estimativa'>('resumo');
+  const TABLE_PAGE_SIZE = 100;
+  const [tablePage, setTablePage] = useState(1);
 
   // Ordenação específica para mini-tabelas (itensos): mapa por título/bloco
   const [miniTableSortMap, setMiniTableSortMap] = useState<Record<string, { key: string; dir: 'asc'|'desc' }>>({});
@@ -1649,6 +1653,12 @@ export default function AnaliseContrato() {
   };
 
   useEffect(() => { setShowTabHelp(false); }, [activeTab]);
+
+  const handleTabChange = (tab: TabKey) => {
+    startTabSwitchTransition(() => {
+      setActiveTab(tab);
+    });
+  };
 
   useEffect(() => {
     if (activeTab !== 'itensos') {
@@ -1798,6 +1808,12 @@ export default function AnaliseContrato() {
 
     return Array.from(dedup.values());
   }, [itensOsBatchY0, itensOsBatchY1, itensOsBatchY2]);
+
+  const deferredRawM = useDeferredValue(rawM);
+  const deferredRawS = useDeferredValue(rawS);
+  const deferredRawFat = useDeferredValue(rawFat);
+  const deferredRawFatItens = useDeferredValue(rawFatItens);
+  const deferredRawItensOS = useDeferredValue(rawItensOS);
 
   const lItensOS = lItensOsY0
     || (itensOsYear1 >= 2022 && lItensOsY1)
@@ -2223,11 +2239,11 @@ export default function AnaliseContrato() {
   }, [activeContratos]);
 
   const vehicleRows = useMemo((): VehicleRow[] => {
-    const arrM = rawM as ManutencaoRow[]|null ?? [];
-    const arrS = rawS as SinistroRow[]|null   ?? [];
-    const arrF = rawFat as FaturamentoRow[]|null ?? [];
-    const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
-    const arrItensOS = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    const arrM = deferredRawM as ManutencaoRow[]|null ?? [];
+    const arrS = deferredRawS as SinistroRow[]|null   ?? [];
+    const arrF = deferredRawFat as FaturamentoRow[]|null ?? [];
+    const arrFI = deferredRawFatItens as FaturamentoItemRow[]|null ?? [];
+    const arrItensOS = deferredRawItensOS as ItensOrdemServicoRow[]|null ?? [];
     const arrPrecos = rawPrecos as PrecosLocacaoRow[]|null ?? [];
     const arrMov = rawMovVeic as MovimentacaoVeiculoRow[]|null ?? [];
 
@@ -2780,7 +2796,7 @@ export default function AnaliseContrato() {
     });
 
     return result;
-  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, rawItensOS, rawPrecos, rawMovVeic, kmDivisor, bancoRegraLookup, manualCostLookup]);
+  }, [activeContratos, rawF, frotaByPlaca, deferredRawM, deferredRawS, deferredRawFat, deferredRawFatItens, deferredRawItensOS, rawPrecos, rawMovVeic, kmDivisor, bancoRegraLookup, manualCostLookup]);
 
   const getVencInfo = (v: string) => {
     const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -2968,6 +2984,15 @@ export default function AnaliseContrato() {
       return sortDir==='asc'?cmp:-cmp;
     });
   }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterClassificacaoOdometro, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc, sortKey, sortDir]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [activeTab, filterCliente, filterCTO, filterPlaca, filterSitLoc]);
+
+  const pagedDisplayRows = useMemo(
+    () => displayRows.slice(0, tablePage * TABLE_PAGE_SIZE),
+    [displayRows, tablePage]
+  );
 
   const resumoContratoSelecionado = useMemo(() => {
     const contratosNoFiltro = (filterCTO || []).map(v => String(v || '').trim()).filter(Boolean);
@@ -3401,7 +3426,7 @@ export default function AnaliseContrato() {
   };
 
   const osPorOcorrencia = useMemo(() => {
-    const itens = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    const itens = deferredRawItensOS as ItensOrdemServicoRow[]|null ?? [];
     const map = new Map<string, Set<string>>();
 
     const add = (key: string, os: string, plate?: unknown) => {
@@ -3435,12 +3460,12 @@ export default function AnaliseContrato() {
     }
 
     return map;
-  }, [rawItensOS]);
+  }, [deferredRawItensOS]);
 
   const maintDetailData = useMemo<{ rows: MaintDetailRow[]; resumoPorTipo: MaintDetailResumoRow[] }>(() => {
     if (!maintDetailTarget) return { rows: [], resumoPorTipo: [] };
-    const arrM = rawM as ManutencaoRow[]|null ?? [];
-    const arrS = rawS as SinistroRow[]|null ?? [];
+    const arrM = deferredRawM as ManutencaoRow[]|null ?? [];
+    const arrS = deferredRawS as SinistroRow[]|null ?? [];
     const targetKey = canonicalPlate(maintDetailTarget.placa || '');
     if (!targetKey) return { rows: [], resumoPorTipo: [] as MaintDetailResumoRow[] };
 
@@ -3612,14 +3637,14 @@ export default function AnaliseContrato() {
       rows: rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)),
       resumoPorTipo,
     };
-  }, [maintDetailTarget, rawM, rawS, osPorOcorrencia]);
+  }, [maintDetailTarget, deferredRawM, deferredRawS, osPorOcorrencia]);
 
   const fatDetailRows = useMemo<FaturamentoDetailRow[]>(() => {
     if (!maintDetailTarget || maintDetailTarget.mode !== 'faturamento') return [];
     if (/cortesia/i.test(String(maintDetailTarget.tipoContrato || ''))) return [];
 
-    const arrF = rawFat as FaturamentoRow[]|null ?? [];
-    const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
+    const arrF = deferredRawFat as FaturamentoRow[]|null ?? [];
+    const arrFI = deferredRawFatItens as FaturamentoItemRow[]|null ?? [];
     const arrPrecos = rawPrecos as PrecosLocacaoRow[]|null ?? [];
 
     const targetPlaca = normalizePlate(maintDetailTarget.placa || '');
@@ -3754,12 +3779,12 @@ export default function AnaliseContrato() {
     }
 
     return rows.sort((a, b) => (b.ano - a.ano) || (b.mes - a.mes));
-  }, [maintDetailTarget, rawFat, rawFatItens, rawPrecos]);
+  }, [maintDetailTarget, deferredRawFat, deferredRawFatItens, rawPrecos]);
 
   const itensOsDetailRows = useMemo<ItemOsDetailRow[]>(() => {
     if (!maintDetailTarget || maintDetailTarget.mode !== 'itensos') return [];
 
-    const arrItens = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    const arrItens = deferredRawItensOS as ItensOrdemServicoRow[]|null ?? [];
     const targetPlaca = normalizePlate(maintDetailTarget.placa || '');
     const targetPlacaKey = canonicalPlate(maintDetailTarget.placa || '');
     const targetVeiculo = String(maintDetailTarget.idVeiculo || '').trim().toUpperCase();
@@ -3827,7 +3852,7 @@ export default function AnaliseContrato() {
       if (byDate !== 0) return byDate;
       return (b.valorTotal || 0) - (a.valorTotal || 0);
     });
-  }, [maintDetailTarget, rawItensOS]);
+  }, [maintDetailTarget, deferredRawItensOS]);
 
   const getDynYearsForTab = (tab: TabKey) => {
     const minYear = 2022;
@@ -4104,7 +4129,7 @@ export default function AnaliseContrato() {
 
     if (activeTab !== 'itensos') return empty;
 
-    const arrItens = rawItensOS as ItensOrdemServicoRow[]|null ?? [];
+    const arrItens = deferredRawItensOS as ItensOrdemServicoRow[]|null ?? [];
     if (!arrItens.length || !displayRows.length) return empty;
 
     const targetPlates = new Set(displayRows.map(r => normalizePlate(r.placa || '')).filter(Boolean));
@@ -4214,7 +4239,7 @@ export default function AnaliseContrato() {
       topFornecedores: toRanking(byFornecedor, 'valor'),
       topGruposDespesa: toRanking(byGrupo, 'valor'),
     };
-  }, [activeTab, displayRows, rawItensOS]);
+  }, [activeTab, displayRows, deferredRawItensOS]);
 
   const exportItensOsMiniTabelaExcel = (
     title: string,
@@ -4274,9 +4299,9 @@ export default function AnaliseContrato() {
   };
 
   const itensOsEstimativaRows = useMemo<ItemOsEstimativaRow[]>(() => {
-    if (activeTab !== 'itensos') return [];
+    if (activeTab !== 'itensos' || activeItemsSubTab !== 'estimativa') return [];
 
-    const maintRows = rawM as ManutencaoRow[]|null ?? [];
+    const maintRows = deferredRawM as ManutencaoRow[]|null ?? [];
     if (!displayRows.length || !maintRows.length) return [];
 
     const defaultIntervalByType: Record<EstimativaManutencaoTipo, number> = {
@@ -4517,7 +4542,7 @@ export default function AnaliseContrato() {
     }
 
     return rows;
-  }, [activeTab, displayRows, rawM]);
+  }, [activeTab, activeItemsSubTab, displayRows, deferredRawM]);
 
   const sortedItensOsEstimativaRows = useMemo(() => {
     const rows = [...itensOsEstimativaRows];
@@ -4592,7 +4617,7 @@ export default function AnaliseContrato() {
   }, [itensOsEstimativaRows]);
 
   const itensOsStatusRows = useMemo<ItemOsStatusPlacaRow[]>(() => {
-    if (activeTab !== 'itensos') return [];
+    if (activeTab !== 'itensos' || activeItemsSubTab !== 'status') return [];
 
     const defaultAlertRules = buildDefaultItemAlertRules()
       .filter(rule => rule.enabled && Number(rule.intervaloKm) > 0)
@@ -4667,7 +4692,7 @@ export default function AnaliseContrato() {
       return Math.min(kmAtual, estimado);
     };
 
-    for (const item of (rawItensOS as ItensOrdemServicoRow[] | null ?? [])) {
+    for (const item of (deferredRawItensOS as ItensOrdemServicoRow[] | null ?? [])) {
       const itemAny = item as Record<string, unknown>;
       const plateKey = canonicalPlate(itemAny?.Placa || itemAny?.placa || '');
       if (!plateKey || !vehicleByPlate.has(plateKey)) continue;
@@ -4886,7 +4911,7 @@ export default function AnaliseContrato() {
     });
 
     return rows;
-  }, [activeTab, displayRows, rawItensOS, alertRulesByScope]);
+  }, [activeTab, activeItemsSubTab, displayRows, deferredRawItensOS, alertRulesByScope]);
 
   const itensOsStatusKpis = useMemo(() => {
     const total = itensOsStatusRows.length;
@@ -5147,10 +5172,20 @@ export default function AnaliseContrato() {
 
   const tabHasYearDetail = (tab: TabKey) => tab !== 'previsto' && tab !== 'itensos' && tab !== 'resumo' && tab !== 'listagemCto';
 
+  const isMainDataTableVisible = useMemo(
+    () => activeTab !== 'resumo'
+      && activeTab !== 'listagemCto'
+      && !(activeTab === 'itensos' && (activeItemsSubTab === 'estimativa' || activeItemsSubTab === 'status')),
+    [activeTab, activeItemsSubTab]
+  );
+
   // Build dynamic columns
   const tabCols = useMemo(
-    () => getTabColsForTab(activeTab, dynYears, tabHasYearDetail(activeTab) ? !!showYearDetailByTab[activeTab] : true),
-    [activeTab, dynYears, fatPctAlertThreshold, showYearDetailByTab]
+    () => {
+      if (!isMainDataTableVisible) return [];
+      return getTabColsForTab(activeTab, dynYears, tabHasYearDetail(activeTab) ? !!showYearDetailByTab[activeTab] : true);
+    },
+    [activeTab, dynYears, fatPctAlertThreshold, showYearDetailByTab, isMainDataTableVisible]
   );
 
   const groupColWidth = 120;
@@ -5158,6 +5193,7 @@ export default function AnaliseContrato() {
   const idCols = useMemo(() => getIdCols(kmRedThreshold), [kmRedThreshold]);
 
   const allCols = useMemo(() => {
+    if (!isMainDataTableVisible) return [];
     const idColsAdjusted = idCols.map(col => {
       if (col.key === 'cliente') return { ...col, w: clienteColWidth };
       if (col.key === 'modelo') return { ...col, w: 240 };
@@ -5165,7 +5201,7 @@ export default function AnaliseContrato() {
       return col;
     });
     return [...idColsAdjusted, ...tabCols];
-  }, [tabCols, idCols, clienteColWidth, groupColWidth]);
+  }, [tabCols, idCols, clienteColWidth, groupColWidth, isMainDataTableVisible]);
 
   // leftOffsets removed — sticky columns disabled (user requested)
 
@@ -5175,15 +5211,18 @@ export default function AnaliseContrato() {
   );
 
   const tableMinWidth = useMemo(() => {
+    if (!isMainDataTableVisible) return 0;
     return allCols.reduce((sum, col) => {
       const base = col.w || 90;
       const adjusted = col.align === 'right' ? Math.max(base, 108) : base;
       return sum + adjusted;
     }, 0);
-  }, [allCols]);
+  }, [allCols, isMainDataTableVisible]);
 
   // Totais das colunas (quando compatível)
   const colTotals = useMemo(() => {
+    if (!isMainDataTableVisible || allCols.length === 0) return {} as Record<string, number | null>;
+
     const totals: Record<string, number | null> = {};
     const isSummableKey = (k: string) => {
       if (!k) return false;
@@ -5228,6 +5267,24 @@ export default function AnaliseContrato() {
         continue;
       }
 
+      // average for mean columns (Custo/KM, Ticket Médio, Custo KM Líq)
+      if (kk.includes('custokm') || kk === 'ticketmedio') {
+        let sum = 0;
+        let count = 0;
+        for (const r of displayRows) {
+          let v: any = undefined;
+          if (col.sortGetter) {
+            try { v = col.sortGetter(r as any); } catch (e) { v = undefined; }
+          } else {
+            v = (r as any)[col.key];
+          }
+          const n = Number(v);
+          if (isFinite(n)) { sum += n; count++; }
+        }
+        totals[col.key] = count > 0 ? sum / count : null;
+        continue;
+      }
+
       if (!isSummableKey(col.key)) {
         totals[col.key] = null;
         continue;
@@ -5248,7 +5305,7 @@ export default function AnaliseContrato() {
       totals[col.key] = found ? sum : null;
     }
     return totals;
-  }, [displayRows, allCols]);
+  }, [displayRows, allCols, isMainDataTableVisible]);
 
   const handleSort = (k:string) => { if(k===sortKey) setSortDir(d=>d==='asc'?'desc':'asc'); else{ setSortKey(k); setSortDir('asc'); } };
   const sortIcon   = (k:string) => sortKey===k?(sortDir==='asc'?' ↑':' ↓'):'';
@@ -6460,39 +6517,39 @@ export default function AnaliseContrato() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3">
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Cliente</label>
-              <SearchableSelect options={opts.clientes} value={filterCliente} onChange={v=>{ setFilterCliente(v); setFilterCTO([]); setFilterGrupoModelo([]); }} placeholder="Todos" allLabel="Todos" />
+              <SearchableSelect options={opts.clientes} value={filterCliente} onChange={v=>startFilterTransition(()=>{ setFilterCliente(v); setFilterCTO([]); setFilterGrupoModelo([]); })} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">CTO (Contrato)</label>
-              <SearchableSelect options={opts.ctos} value={filterCTO} onChange={v=>setFilterCTO(v)} placeholder="Todos" allLabel="Todos" />
+              <SearchableSelect options={opts.ctos} value={filterCTO} onChange={v=>startFilterTransition(()=>setFilterCTO(v))} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Grupo / Modelo</label>
-              <HierarchicalSelect nodes={grupoModeloTree} value={filterGrupoModelo} onChange={v=>setFilterGrupoModelo(v)} placeholder="Todos" allLabel="Todos" />
+              <HierarchicalSelect nodes={grupoModeloTree} value={filterGrupoModelo} onChange={v=>startFilterTransition(()=>setFilterGrupoModelo(v))} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Placa</label>
-              <SearchableSelect options={opts.placas} value={filterPlaca} onChange={v=>setFilterPlaca(v)} placeholder="Todas" allLabel="Todas" />
+              <SearchableSelect options={opts.placas} value={filterPlaca} onChange={v=>startFilterTransition(()=>setFilterPlaca(v))} placeholder="Todas" allLabel="Todas" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Classificação Odômetro</label>
-              <SearchableSelect options={opts.classificacaoOdometro} value={filterClassificacaoOdometro} onChange={v=>setFilterClassificacaoOdometro(v)} placeholder="Todas" allLabel="Todas" />
+              <SearchableSelect options={opts.classificacaoOdometro} value={filterClassificacaoOdometro} onChange={v=>startFilterTransition(()=>setFilterClassificacaoOdometro(v))} placeholder="Todas" allLabel="Todas" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label>
-              <HierarchicalSelect nodes={vencimentoTree} value={filterVencimento} onChange={v=>setFilterVencimento(v)} placeholder="Todos" allLabel="Todos" />
+              <HierarchicalSelect nodes={vencimentoTree} value={filterVencimento} onChange={v=>startFilterTransition(()=>setFilterVencimento(v))} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Tipo Contrato</label>
-              <SearchableSelect options={opts.tipoContrato} value={filterTipoContrato} onChange={v=>setFilterTipoContrato(v)} placeholder="Todos" allLabel="Todos" />
+              <SearchableSelect options={opts.tipoContrato} value={filterTipoContrato} onChange={v=>startFilterTransition(()=>setFilterTipoContrato(v))} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Situação Comercial</label>
-              <SearchableSelect options={opts.sitCTO} value={filterSitCTO} onChange={v=>setFilterSitCTO(v)} placeholder="Todas" allLabel="Todas" />
+              <SearchableSelect options={opts.sitCTO} value={filterSitCTO} onChange={v=>startFilterTransition(()=>setFilterSitCTO(v))} placeholder="Todas" allLabel="Todas" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Situação Locação</label>
-              <SearchableSelect options={opts.sitLoc} value={filterSitLoc} onChange={v=>setFilterSitLoc(v)} placeholder="Todas" allLabel="Todas" />
+              <SearchableSelect options={opts.sitLoc} value={filterSitLoc} onChange={v=>startFilterTransition(()=>setFilterSitLoc(v))} placeholder="Todas" allLabel="Todas" />
             </div>
           </div>
           {((filterCTO&&filterCTO.length)||(filterCliente&&filterCliente.length)||(filterPlaca&&filterPlaca.length)||(filterClassificacaoOdometro&&filterClassificacaoOdometro.length)||(filterGrupoModelo&&filterGrupoModelo.length)||(filterVencimento&&filterVencimento.length)||(filterTipoContrato&&filterTipoContrato.length)||(filterSitCTO&&filterSitCTO.length)||(filterSitLoc&&filterSitLoc.length)) && (
@@ -6526,12 +6583,15 @@ export default function AnaliseContrato() {
             const Icon=t.icon;
             const isActive=activeTab===t.key;
             return (
-              <button key={t.key} onClick={()=>setActiveTab(t.key)}
+              <button key={t.key} onClick={()=>handleTabChange(t.key)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive?`${t.color} text-white shadow-md`:'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                 <Icon className="w-4 h-4" />{t.label}
               </button>
             );
           })}
+          {isTabSwitchPending && (
+            <span className="text-[11px] text-slate-500">Alternando aba...</span>
+          )}
           <button
             type="button"
             onClick={()=>setShowTabHelp(v=>!v)}
@@ -7637,6 +7697,7 @@ export default function AnaliseContrato() {
                   </button>
                 )}
                 <span className="ml-auto text-xs opacity-75">{displayRows.length} linhas</span>
+                {isPending && <span className="text-xs text-amber-600 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/>Filtrando…</span>}
               </div>
               <div className="overflow-auto" style={{maxHeight:'60vh'}}>
                 <table className="border-collapse table-auto text-xs whitespace-nowrap" style={{ minWidth: tableMinWidth }}>
@@ -7676,7 +7737,7 @@ export default function AnaliseContrato() {
                           : 'Nenhum veículo encontrado com os filtros selecionados.'}
                       </td></tr>
                     )}
-                    {displayRows.map((row,i)=>(
+                    {pagedDisplayRows.map((row,i)=>(
                       <tr key={`${row.placa}-${i}`}
                         className={`border-b border-slate-100 hover:bg-indigo-50/60 transition-colors ${i%2===0?'bg-white':'bg-slate-50/40'}`}>
                         {allCols.map((col) => {
@@ -7710,6 +7771,19 @@ export default function AnaliseContrato() {
                         </td>
                       </tr>
                     ))}
+                    {pagedDisplayRows.length < displayRows.length && (
+                      <tr>
+                        <td colSpan={allCols.length + 1} className="text-center py-3">
+                          <button
+                            type="button"
+                            onClick={() => setTablePage(p => p + 1)}
+                            className="text-xs text-indigo-600 hover:underline"
+                          >
+                            Carregar mais ({displayRows.length - pagedDisplayRows.length} restantes)
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                   <tfoot className="sticky bottom-0 bg-white z-10 border-t">
                     <tr className="bg-slate-50 font-semibold text-slate-700">
