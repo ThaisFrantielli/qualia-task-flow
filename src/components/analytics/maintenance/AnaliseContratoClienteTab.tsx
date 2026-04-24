@@ -861,6 +861,10 @@ export default function AnaliseContratoClienteTab() {
         const sortedV = veiculoSort.sort(vehicleTable);
         const totalPagesV = Math.ceil(sortedV.length / PAGE_SIZE);
         const pagedV = sortedV.slice((pageVeiculo - 1) * PAGE_SIZE, pageVeiculo * PAGE_SIZE);
+        const vehiclesWithKm = vehicleTable.filter(r => (r.kmConfirmado || 0) > 0);
+        const avgCustoKm = vehiclesWithKm.length > 0
+          ? vehiclesWithKm.reduce((s, r) => s + (r.custoKm || 0), 0) / vehiclesWithKm.length
+          : 0;
         return (
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -947,8 +951,8 @@ export default function AnaliseContratoClienteTab() {
                     <td className="px-3 py-2 text-right text-xs tabular-nums">{fmtBRL(vehicleTable.reduce((s,r)=>s+r.custoTotal,0))}</td>
                     <td /><td /><td />
                     <td className="px-3 py-2 text-right text-xs tabular-nums">
-                      {vehicleTable.reduce((s,r)=>s+r.kmConfirmado,0) > 0
-                        ? `R$ ${(vehicleTable.reduce((s,r)=>s+r.custoTotal,0) / vehicleTable.reduce((s,r)=>s+r.kmConfirmado,0)).toFixed(2)}`
+                      {vehiclesWithKm.length > 0
+                        ? `R$ ${avgCustoKm.toFixed(2)}`
                         : '—'}
                     </td>
                   </tr>

@@ -35,6 +35,64 @@ jobs:
       - name: Instalar dependencias ETL
         run: npm --prefix scripts/local-etl install
 
+      - name: Validar acesso ao SQL Server
+        env:
+          SQL_SERVER: ${{ secrets.SQL_SERVER }}
+          SQL_PORT: ${{ secrets.SQL_PORT }}
+        run: |
+          node - <<'NODE'
+          const net = require('net');
+
+          const host = process.env.SQL_SERVER;
+          const port = Number.parseInt(process.env.SQL_PORT || '3494', 10);
+
+          if (!host || Number.isNaN(port)) {
+            console.error('❌ SQL_SERVER/SQL_PORT invalidos ou ausentes.');
+            process.exit(1);
+          }
+
+          let attempt = 0;
+          const maxAttempts = 3;
+          const timeoutMs = 8000;
+
+          const tryConnect = () => {
+            attempt += 1;
+            process.stdout.write(`Tentativa ${attempt}/${maxAttempts} em SQL_SERVER:${port}... `);
+
+            const socket = net.createConnection({ host, port });
+            let settled = false;
+
+            const finish = (ok, reason) => {
+              if (settled) return;
+              settled = true;
+              socket.destroy();
+
+              if (ok) {
+                console.log('OK');
+                process.exit(0);
+                return;
+              }
+
+              if (attempt < maxAttempts) {
+                console.log(`falhou (${reason}), tentando novamente...`);
+                setTimeout(tryConnect, 2000 * attempt);
+                return;
+              }
+
+              console.error(`falhou (${reason}).`);
+              console.error('❌ Nao foi possivel alcancar o SQL Server. Verifique firewall/allowlist, SQL_SERVER/SQL_PORT e conectividade de rede.');
+              process.exit(1);
+            };
+
+            socket.setTimeout(timeoutMs);
+            socket.on('connect', () => finish(true));
+            socket.on('timeout', () => finish(false, `timeout ${timeoutMs}ms`));
+            socket.on('error', (err) => finish(false, err.code || err.message));
+          };
+
+          tryConnect();
+          NODE
+
       - name: Executar sincronizacao otimizada v3 (parallelized COPY protocol)
         env:
           SQL_SERVER: ${{ secrets.SQL_SERVER }}
