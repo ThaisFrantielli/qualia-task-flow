@@ -56,7 +56,7 @@ const ALLOWED_TABLES = new Set([
   'fat_detalhe_itens_os_2024', 'fat_detalhe_itens_os_2025',
   'fat_detalhe_itens_os_2026', 'fat_itens_ordem_servico', 'fato_financeiro_dre',
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
-  'agg_dre_mensal', 'dim_compras',
+  'agg_dre_mensal', 'dim_compras', 'dim_precos_fipe',
 ]);
 
 const FIELD_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;

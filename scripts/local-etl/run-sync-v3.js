@@ -76,6 +76,7 @@ const HEAVY_TABLES = new Set([
 const TABLES = [
     { table: 'dim_frota', query: `SELECT * FROM Veiculos WITH (NOLOCK)` },
     { table: 'dim_compras', query: `SELECT * FROM VeiculosComprados WITH (NOLOCK)` },
+    { table: 'dim_precos_fipe', query: `SELECT * FROM PrecosFIPE WITH (NOLOCK)` },
     { table: 'fat_faturamentos', query: `SELECT * FROM Faturamentos WITH (NOLOCK)` },
     { table: 'fat_faturamento_itens', query: `SELECT * FROM FaturamentoItems WITH (NOLOCK)` },
     {

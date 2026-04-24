@@ -17,6 +17,22 @@ const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; 
 const inFlightRequests = new Map<string, Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }>>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+function normalizeBaseUrl(base: string | undefined | null): string {
+  return String(base || '').trim().replace(/\/$/, '');
+}
+
+function getAlternativeApiBases(currentBase: string): string[] {
+  const candidates = new Set<string>();
+  const envTarget = normalizeBaseUrl(import.meta.env.VITE_API_TARGET as string | undefined);
+  const defaultRemote = 'https://qualityconecta.vercel.app';
+
+  if (envTarget) candidates.add(envTarget);
+  candidates.add(defaultRemote);
+
+  const normalizedCurrent = normalizeBaseUrl(currentBase);
+  return Array.from(candidates).filter((base) => normalizeBaseUrl(base) !== normalizedCurrent);
+}
+
 function resolveSourceFromMetadata(metadata: BIMetadata | null): 'live' | 'static' {
   const source = String(metadata?.source || '').toLowerCase();
   return source.includes('static') ? 'static' : 'live';
@@ -164,7 +180,8 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
 
     const bust = bustServer ? `&refresh=${Date.now()}` : '';
     const limitParam = limit ? `&limit=${limit}` : '';
-    const url = `${getApiBaseUrl()}/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
+    const currentApiBase = getApiBaseUrl();
+    const url = `${currentApiBase}/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
     const resp = await fetch(url);
 
     if (!resp.ok) {
@@ -190,6 +207,30 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
         if (staticFallback) {
           console.warn(`[useBIData] API denied table "${tableName}"; using static fallback from /public/data.`);
           return { data: staticFallback.data, metadata: staticFallback.metadata, success: true };
+        }
+
+        // Em dev local, o backend em memória pode ficar desatualizado.
+        // Tenta uma API alternativa (ex.: Vercel) antes de falhar.
+        const alternativeBases = getAlternativeApiBases(currentApiBase);
+        for (const altBase of alternativeBases) {
+          try {
+            const altUrl = `${altBase}/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
+            const altResp = await fetch(altUrl);
+            if (!altResp.ok) continue;
+
+            const altContentType = altResp.headers.get('content-type') || '';
+            if (!altContentType.includes('application/json')) continue;
+
+            const altBody = await altResp.json();
+            const altMetadata: BIMetadata = altBody.metadata || {
+              generated_at: new Date().toISOString(),
+              source: 'live',
+            };
+            console.warn(`[useBIData] API local negou "${tableName}"; usando fallback remoto em ${altBase}.`);
+            return { data: altBody.data ?? altBody, metadata: altMetadata, success: true };
+          } catch {
+            // tenta próxima base
+          }
         }
       }
 

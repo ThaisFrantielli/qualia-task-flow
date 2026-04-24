@@ -6,7 +6,7 @@
 export function getApiBaseUrl(): string {
   // If running on localhost, Vite proxy is active
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return '';
+    return import.meta.env.VITE_API_TARGET || 'http://localhost:3001';
   }
   // In production Vercel deployment, relative paths work
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {

@@ -1,0 +1,207 @@
+import { useMemo } from 'react';
+
+export type DepreciationMethod = 'exponential' | 'linear';
+
+export interface DepreciationPoint {
+  month: number;
+  value: number;
+}
+
+export interface FipeHistoryPoint {
+  date: Date;
+  value: number;
+}
+
+export interface DepreciationInput {
+  acquisitionValue: number;
+  months: number;
+  method: DepreciationMethod;
+  fipeHistory: FipeHistoryPoint[];
+  manualAnnualRate?: number | null;
+}
+
+export interface DepreciationResult {
+  canCalculate: boolean;
+  reason?: string;
+  annualRate: number;
+  annualRateSource: 'fipe' | 'manual';
+  initialFipe: number;
+  latestFipe: number;
+  initialDate: Date | null;
+  latestDate: Date | null;
+  yearsBetween: number;
+  futureValue: number;
+  depreciationTotal: number;
+  depreciationMonthly: number;
+  depreciationAnnual: number;
+  annualPercentage: number;
+  gapValue: number;
+  gapPercent: number;
+  timeline: DepreciationPoint[];
+  insight: string;
+}
+
+const clampMoney = (v: number) => {
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, v);
+};
+
+function buildInsight(rate: number, gapPercent: number): string {
+  const absRate = Math.abs(rate);
+
+  if (rate > 0.02) {
+    return 'Valorizacao historica acima da media. Pode sustentar precificacao premium, com monitoramento de volatilidade.';
+  }
+
+  if (absRate <= 0.04 && gapPercent >= -0.08) {
+    return 'Este veiculo possui baixa depreciacao e e recomendado para locacao de prazo maior.';
+  }
+
+  if (absRate > 0.12 || gapPercent < -0.2) {
+    return 'Alta depreciacao projetada. Revisar prazo de venda, politica de renovacao e preco de locacao.';
+  }
+
+  return 'Depreciacao moderada. Balancear prazo contratual, km projetada e estrategia de renovacao.';
+}
+
+function calculate(input: DepreciationInput): DepreciationResult {
+  const acquisitionValue = Number(input.acquisitionValue) || 0;
+  const months = Math.max(1, Math.round(Number(input.months) || 0));
+  const method = input.method;
+
+  const history = [...(input.fipeHistory || [])]
+    .filter((p) => p?.date instanceof Date && Number.isFinite(p?.value))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const hasManualRate = Number.isFinite(input.manualAnnualRate as number);
+
+  if (!acquisitionValue || acquisitionValue <= 0) {
+    return {
+      canCalculate: false,
+      reason: 'Informe um valor de aquisicao valido para calcular a projecao.',
+      annualRate: 0,
+      annualRateSource: hasManualRate ? 'manual' : 'fipe',
+      initialFipe: 0,
+      latestFipe: 0,
+      initialDate: null,
+      latestDate: null,
+      yearsBetween: 0,
+      futureValue: 0,
+      depreciationTotal: 0,
+      depreciationMonthly: 0,
+      depreciationAnnual: 0,
+      annualPercentage: 0,
+      gapValue: 0,
+      gapPercent: 0,
+      timeline: [],
+      insight: 'Sem base suficiente para gerar insight.',
+    };
+  }
+
+  if (history.length <= 1 && !hasManualRate) {
+    const reason = history.length === 0
+      ? 'Sem historico FIPE suficiente. Informe taxa anual manual para continuar.'
+      : 'Apenas um ponto FIPE encontrado. Informe taxa anual manual para continuar.';
+
+    return {
+      canCalculate: false,
+      reason,
+      annualRate: 0,
+      annualRateSource: 'fipe',
+      initialFipe: history[0]?.value || 0,
+      latestFipe: history[0]?.value || 0,
+      initialDate: history[0]?.date || null,
+      latestDate: history[0]?.date || null,
+      yearsBetween: 0,
+      futureValue: acquisitionValue,
+      depreciationTotal: 0,
+      depreciationMonthly: 0,
+      depreciationAnnual: 0,
+      annualPercentage: 0,
+      gapValue: 0,
+      gapPercent: 0,
+      timeline: [],
+      insight: 'Sem base suficiente para gerar insight.',
+    };
+  }
+
+  const initial = history[0];
+  const latest = history[history.length - 1];
+
+  let annualRateFromFipe = 0;
+  let yearsBetween = 0;
+
+  if (history.length > 1) {
+    const ms = latest.date.getTime() - initial.date.getTime();
+    yearsBetween = ms / (1000 * 60 * 60 * 24 * 365);
+
+    if (yearsBetween > 0 && initial.value > 0 && latest.value > 0) {
+      annualRateFromFipe = Math.pow(latest.value / initial.value, 1 / yearsBetween) - 1;
+    }
+  }
+
+  const annualRate = hasManualRate
+    ? Number(input.manualAnnualRate)
+    : annualRateFromFipe;
+
+  const annualRateSource: 'fipe' | 'manual' = hasManualRate ? 'manual' : 'fipe';
+
+  const time = months / 12;
+
+  const futureValueRaw = method === 'linear'
+    ? acquisitionValue * (1 + annualRate * time)
+    : acquisitionValue * Math.pow(1 + annualRate, time);
+
+  const futureValue = clampMoney(futureValueRaw);
+  const depreciationTotal = acquisitionValue - futureValue;
+  const depreciationMonthly = depreciationTotal / months;
+  const depreciationAnnual = depreciationTotal / time;
+  const annualPercentage = acquisitionValue > 0 ? depreciationAnnual / acquisitionValue : 0;
+
+  const latestFipe = latest?.value || 0;
+  const gapValue = futureValue - latestFipe;
+  const gapPercent = latestFipe > 0 ? gapValue / latestFipe : 0;
+
+  const timeline: DepreciationPoint[] = [];
+  for (let m = 0; m <= months; m++) {
+    const t = m / 12;
+    const valueRaw = method === 'linear'
+      ? acquisitionValue * (1 + annualRate * t)
+      : acquisitionValue * Math.pow(1 + annualRate, t);
+
+    timeline.push({
+      month: m,
+      value: clampMoney(valueRaw),
+    });
+  }
+
+  return {
+    canCalculate: true,
+    annualRate,
+    annualRateSource,
+    initialFipe: initial?.value || 0,
+    latestFipe,
+    initialDate: initial?.date || null,
+    latestDate: latest?.date || null,
+    yearsBetween,
+    futureValue,
+    depreciationTotal,
+    depreciationMonthly,
+    depreciationAnnual,
+    annualPercentage,
+    gapValue,
+    gapPercent,
+    timeline,
+    insight: buildInsight(annualRate, gapPercent),
+  };
+}
+
+export function useDepreciation(input: DepreciationInput): DepreciationResult {
+  return useMemo(() => calculate(input), [
+    input.acquisitionValue,
+    input.months,
+    input.method,
+    input.manualAnnualRate,
+    input.fipeHistory,
+  ]);
+}

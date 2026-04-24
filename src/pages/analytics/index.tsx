@@ -145,6 +145,12 @@ export default function AnalyticsIndex() {
                 title: 'Veículos Comprados',
                 desc: 'Aquisições, Valor FIPE, Financiamento e Histórico',
               },
+              {
+                to: '/analytics/depreciacao-fipe',
+                icon: <BarChart3 className="w-5 h-5" />,
+                title: 'Depreciação FIPE',
+                desc: 'Projeção de valor futuro, taxa anual e recomendação de revenda',
+              },
             ]}
           />
 

@@ -28,11 +28,11 @@ dotenv.config({ path: path.join(root, '.env') });
 const { Pool } = pg;
 
 const primaryPool = new Pool({
-  host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
-  port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
-  user: process.env.ORACLE_PG_USER || 'postgres',
-  password: process.env.ORACLE_PG_PASSWORD || '',
-  database: process.env.ORACLE_PG_DATABASE || 'postgres',
+  host: process.env.PG_POOLER_HOST || process.env.PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.PG_POOLER_PORT || process.env.PG_PORT || process.env.ORACLE_PG_PORT || '5432'),
+  user: process.env.PG_POOLER_USER || process.env.PG_USER || process.env.ORACLE_PG_USER || 'postgres',
+  password: process.env.PG_PASSWORD || process.env.ORACLE_PG_PASSWORD || '',
+  database: process.env.PG_DATABASE || process.env.ORACLE_PG_DATABASE || 'postgres',
   max: 20,                      // mais conexões para suportar React StrictMode (double-invoke)
   min: 2,                       // mantém conexões abertas e prontas
   idleTimeoutMillis: 60000,
@@ -43,9 +43,9 @@ const primaryPool = new Pool({
 });
 
 const heavyPool = new Pool({
-  host: process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
-  port: parseInt(process.env.HEAVY_PG_PORT || '5432'),
-  user: process.env.HEAVY_PG_USER || process.env.ORACLE_PG_USER || 'postgres',
+  host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_POOLER_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || process.env.ORACLE_PG_POOLER_PORT || process.env.ORACLE_PG_PORT || '5432'),
+  user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || process.env.ORACLE_PG_POOLER_USER || process.env.ORACLE_PG_USER || 'postgres',
   password: process.env.HEAVY_PG_PASSWORD || process.env.ORACLE_PG_PASSWORD || '',
   database: process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE || 'postgres',
   max: 20,
@@ -86,7 +86,7 @@ const ALLOWED_TABLES = new Set([
   'fat_detalhe_itens_os_2024', 'fat_detalhe_itens_os_2025',
   'fat_detalhe_itens_os_2026', 'fat_itens_ordem_servico', 'fato_financeiro_dre',
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
-  'agg_dre_mensal', 'dim_compras',
+  'agg_dre_mensal', 'dim_compras', 'dim_precos_fipe',
 ]);
 
 const FIELD_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -374,8 +374,15 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
+  const primaryHost = process.env.PG_POOLER_HOST || process.env.PG_HOST || process.env.ORACLE_PG_HOST;
+  const primaryPort = process.env.PG_POOLER_PORT || process.env.PG_PORT || process.env.ORACLE_PG_PORT;
+  const primaryDatabase = process.env.PG_DATABASE || process.env.ORACLE_PG_DATABASE;
+  const heavyHost = process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_POOLER_HOST || process.env.ORACLE_PG_HOST;
+  const heavyPort = process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || process.env.ORACLE_PG_POOLER_PORT || process.env.ORACLE_PG_PORT;
+  const heavyDatabase = process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE;
+
   console.log(`\n✅ Local API server rodando em http://localhost:${PORT}`);
   console.log(`   Servindo: /api/bi-data-batch e /api/bi-data`);
-  console.log(`   Banco PRIMARY: ${process.env.ORACLE_PG_HOST}:${process.env.ORACLE_PG_PORT}/${process.env.ORACLE_PG_DATABASE}`);
-  console.log(`   Banco HEAVY:   ${process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST}:${process.env.HEAVY_PG_PORT || process.env.ORACLE_PG_PORT}/${process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE}\n`);
+  console.log(`   Banco PRIMARY: ${primaryHost}:${primaryPort}/${primaryDatabase}`);
+  console.log(`   Banco HEAVY:   ${heavyHost}:${heavyPort}/${heavyDatabase}\n`);
 });

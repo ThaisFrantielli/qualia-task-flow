@@ -32,6 +32,7 @@ import ContractTerminationDashboard from '@/pages/analytics/ContractTerminationD
 import ContractLifecycleDashboard from '@/pages/analytics/ContractLifecycleDashboard';
 // CashFlowProjectionPage removed (unused)
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
+import FipeDepreciationPage from '@/pages/analytics/FipeDepreciationPage';
 import FaturamentoDashboard from '@/pages/analytics/FaturamentoDashboard';
 import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
 import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
@@ -136,6 +137,7 @@ function App() {
                 <Route path="analise-contrato/previsao-encerramento" element={<AnalyticsProtectedRoute pageKey="previsao-encerramento"><ContractTerminationDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="analise-contrato/abertura-encerramento" element={<AnalyticsProtectedRoute pageKey="abertura-encerramento"><ContractLifecycleDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="compras" element={<AnalyticsProtectedRoute pageKey="compras"><PurchasesDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="depreciacao-fipe" element={<AnalyticsProtectedRoute pageKey="compras"><FipeDepreciationPage /></AnalyticsProtectedRoute>} />
                 <Route path="faturamento" element={<AnalyticsProtectedRoute pageKey="faturamento"><FaturamentoDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="manutencao" element={<AnalyticsProtectedRoute pageKey="manutencao"><MaintenanceDashboard /></AnalyticsProtectedRoute>} />
                 <Route path="multas" element={<AnalyticsProtectedRoute pageKey="multas"><InfractionsDashboard /></AnalyticsProtectedRoute>} />
