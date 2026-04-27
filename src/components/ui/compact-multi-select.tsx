@@ -4,8 +4,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
 
+export type OptionItem = string | { value: string; label: string };
+
+function getOptionValue(opt: OptionItem): string {
+  return typeof opt === 'string' ? opt : opt.value;
+}
+
+function getOptionLabel(opt: OptionItem): string {
+  return typeof opt === 'string' ? opt : opt.label;
+}
+
 interface CompactMultiSelectProps {
-  options: string[];
+  options: OptionItem[];
   selected: string[];
   onSelectedChange: (selected: string[]) => void;
   label?: string;
@@ -26,29 +36,39 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
   const [visibleCount, setVisibleCount] = useState(100);
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  const optionValues = useMemo(() => options.map(getOptionValue), [options]);
+  const optionMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const opt of options) {
+      map.set(getOptionValue(opt), getOptionLabel(opt));
+    }
+    return map;
+  }, [options]);
+
   const filtered = useMemo(() => {
     if (!query) return options;
     const q = query.toLowerCase();
-    return options.filter(o => o.toLowerCase().includes(q));
+    return options.filter(o => getOptionLabel(o).toLowerCase().includes(q));
   }, [options, query]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
   const displayText = useMemo(() => {
     if (selected.length === 0) return placeholder;
-    if (selected.length <= 2) return selected.join(', ');
-    return `${selected.slice(0, 2).join(', ')} +${selected.length - 2}`;
-  }, [selected, placeholder]);
+    const labels = selected.map(v => optionMap.get(v) || v);
+    if (labels.length <= 2) return labels.join(', ');
+    return `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`;
+  }, [selected, placeholder, optionMap]);
 
-  const toggle = useCallback((opt: string) => {
-    if (selected.includes(opt)) onSelectedChange(selected.filter(s => s !== opt));
-    else onSelectedChange([...selected, opt]);
+  const toggle = useCallback((optValue: string) => {
+    if (selected.includes(optValue)) onSelectedChange(selected.filter(s => s !== optValue));
+    else onSelectedChange([...selected, optValue]);
   }, [selected, onSelectedChange]);
 
   const selectAll = useCallback(() => {
-    if (selected.length === options.length) onSelectedChange([]);
-    else onSelectedChange(options);
-  }, [selected, options, onSelectedChange]);
+    if (selected.length === optionValues.length) onSelectedChange([]);
+    else onSelectedChange([...optionValues]);
+  }, [selected, optionValues, onSelectedChange]);
 
   return (
     <div className={cn('w-full relative', className)}>
@@ -66,16 +86,20 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
             <button onClick={() => { setQuery(''); setVisibleCount(100); }} className="text-sm text-slate-400">Limpar</button>
           </div>
           <div className="flex items-center justify-between mb-2">
-            <button onClick={selectAll} className="text-sm text-slate-700">{selected.length === options.length ? 'Desmarcar todos' : 'Selecionar todos'}</button>
+            <button onClick={selectAll} className="text-sm text-slate-700">{selected.length === optionValues.length ? 'Desmarcar todos' : 'Selecionar todos'}</button>
             <div className="text-xs text-slate-500">{filtered.length} itens</div>
           </div>
           <div ref={listRef} style={{ maxHeight: 300, overflowY: 'auto' }}>
-            {filtered.slice(0, visibleCount).map(opt => (
-              <div key={opt} className={`flex items-center gap-2 py-1 px-2 rounded ${selectedSet.has(opt) ? 'bg-blue-600 text-white' : ''} hover:bg-blue-600 hover:text-white`}>
-                <Checkbox checked={selectedSet.has(opt)} onCheckedChange={() => toggle(opt)} />
-                <div className="truncate text-sm">{opt}</div>
-              </div>
-            ))}
+            {filtered.slice(0, visibleCount).map(opt => {
+              const value = getOptionValue(opt);
+              const lbl = getOptionLabel(opt);
+              return (
+                <div key={value} className={`flex items-center gap-2 py-1 px-2 rounded ${selectedSet.has(value) ? 'bg-blue-600 text-white' : ''} hover:bg-blue-600 hover:text-white`}>
+                  <Checkbox checked={selectedSet.has(value)} onCheckedChange={() => toggle(value)} />
+                  <div className="truncate text-sm">{lbl}</div>
+                </div>
+              );
+            })}
             {visibleCount < filtered.length && (
               <div className="text-center py-2">
                 <button onClick={() => setVisibleCount(vc => vc + 200)} className="text-sm text-blue-600">Mostrar mais</button>
@@ -89,3 +113,4 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
 };
 
 export default CompactMultiSelect;
+

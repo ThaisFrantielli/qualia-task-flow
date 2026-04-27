@@ -20,6 +20,9 @@ jobs:
     permissions:
       contents: read
     timeout-minutes: 180
+    env:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
 
     steps:
       - name: Checkout do codigo
@@ -30,6 +33,18 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+
+      - name: Conectar na Tailscale (opcional)
+        if: ${{ env.TS_OAUTH_CLIENT_ID != '' && env.TS_OAUTH_SECRET != '' }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ env.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ env.TS_OAUTH_SECRET }}
+          tags: tag:ci-db-sync
+
+      - name: Aviso sem Tailscale
+        if: ${{ env.TS_OAUTH_CLIENT_ID == '' || env.TS_OAUTH_SECRET == '' }}
+        run: echo "::warning::TS_OAUTH_CLIENT_ID/TS_OAUTH_SECRET ausentes. O acesso ao SQL Server dependera de allowlist publica do runner."
       
 
       - name: Instalar dependencias ETL
@@ -39,21 +54,49 @@ jobs:
         env:
           SQL_SERVER: ${{ secrets.SQL_SERVER }}
           SQL_PORT: ${{ secrets.SQL_PORT }}
+          SQL_HEALTHCHECK_TIMEOUT_MS: '20000'
+          SQL_HEALTHCHECK_MAX_ATTEMPTS: '5'
+          SQL_HEALTHCHECK_BACKOFF_MS: '2000'
         run: |
           node - <<'NODE'
+          const dns = require('dns').promises;
           const net = require('net');
 
           const host = process.env.SQL_SERVER;
           const port = Number.parseInt(process.env.SQL_PORT || '3494', 10);
+          const timeoutMs = Number.parseInt(process.env.SQL_HEALTHCHECK_TIMEOUT_MS || '20000', 10);
+          const maxAttempts = Number.parseInt(process.env.SQL_HEALTHCHECK_MAX_ATTEMPTS || '5', 10);
+          const backoffMs = Number.parseInt(process.env.SQL_HEALTHCHECK_BACKOFF_MS || '2000', 10);
 
-          if (!host || Number.isNaN(port)) {
+          if (!host || Number.isNaN(port) || port <= 0) {
             console.error('❌ SQL_SERVER/SQL_PORT invalidos ou ausentes.');
             process.exit(1);
           }
 
-          let attempt = 0;
-          const maxAttempts = 3;
-          const timeoutMs = 8000;
+          if (!Number.isFinite(timeoutMs) || timeoutMs < 1000) {
+            console.error('❌ SQL_HEALTHCHECK_TIMEOUT_MS invalido (minimo 1000).');
+            process.exit(1);
+          }
+
+          if (!Number.isFinite(maxAttempts) || maxAttempts < 1) {
+            console.error('❌ SQL_HEALTHCHECK_MAX_ATTEMPTS invalido (minimo 1).');
+            process.exit(1);
+          }
+
+          if (!Number.isFinite(backoffMs) || backoffMs < 0) {
+            console.error('❌ SQL_HEALTHCHECK_BACKOFF_MS invalido (minimo 0).');
+            process.exit(1);
+          }
+
+          const resolvedHost = async () => {
+            if (net.isIP(host)) return host;
+            try {
+              const [first] = await dns.lookup(host, { all: true });
+              return first?.address || host;
+            } catch {
+              return host;
+            }
+          };
 
           const tryConnect = () => {
             attempt += 1;
@@ -75,12 +118,13 @@ jobs:
 
               if (attempt < maxAttempts) {
                 console.log(`falhou (${reason}), tentando novamente...`);
-                setTimeout(tryConnect, 2000 * attempt);
+                setTimeout(tryConnect, backoffMs * attempt);
                 return;
               }
 
               console.error(`falhou (${reason}).`);
               console.error('❌ Nao foi possivel alcancar o SQL Server. Verifique firewall/allowlist, SQL_SERVER/SQL_PORT e conectividade de rede.');
+              console.error('💡 Dica: se este runner for github-hosted, use Tailscale (TS_OAUTH_*) ou execute em runner self-hosted com acesso a VPN/rede interna.');
               process.exit(1);
             };
 
@@ -90,7 +134,11 @@ jobs:
             socket.on('error', (err) => finish(false, err.code || err.message));
           };
 
-          tryConnect();
+          let attempt = 0;
+          resolvedHost().then((ip) => {
+            console.log(`Host resolvido: ${host} -> ${ip}`);
+            tryConnect();
+          });
           NODE
 
       - name: Executar sincronizacao otimizada v3 (parallelized COPY protocol)

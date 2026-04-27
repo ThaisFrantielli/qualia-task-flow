@@ -64,7 +64,7 @@ function buildInsight(rate: number, gapPercent: number): string {
   return 'Depreciacao moderada. Balancear prazo contratual, km projetada e estrategia de renovacao.';
 }
 
-function calculate(input: DepreciationInput): DepreciationResult {
+export function calculate(input: DepreciationInput): DepreciationResult {
   const acquisitionValue = Number(input.acquisitionValue) || 0;
   const months = Math.max(1, Math.round(Number(input.months) || 0));
   const method = input.method;
