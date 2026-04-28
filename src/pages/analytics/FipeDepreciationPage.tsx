@@ -1248,7 +1248,21 @@ export default function FipeDepreciationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-600 font-medium">Valor base da projecao (R$)</label>
+              <label className="text-xs text-slate-600 font-medium">Preco Publico 0km (R$)</label>
+              <input
+                type="number"
+                value={Number.isFinite(Number(precoPP)) && Number(precoPP) > 0 ? Number(precoPP) : ''}
+                onChange={(e) => form.setValue('precoPP', Number(e.target.value), { shouldValidate: true })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                placeholder="Ex: 127340.00"
+              />
+              <p className="text-[11px] text-slate-500">
+                Preco de tabela sem desconto. Valor de Aquisicao = PP - desconto de frota.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-slate-600 font-medium">Valor de aquisicao (PP - desconto) (R$)</label>
               <input
                 type="number"
                 value={Number.isFinite(valorAquisicao) ? valorAquisicao : ''}
@@ -1384,8 +1398,12 @@ export default function FipeDepreciationPage() {
                   <span className="font-semibold text-slate-800">{formatPct(depreciation.annualRate)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Valor futuro (base)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValue)}</span>
+                  <span className="text-slate-500">Venda apos {effectiveMonths} meses (PP)</span>
+                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValuePP)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-slate-500">Venda apos {effectiveMonths} meses (Estimada)</span>
+                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValueEstimated)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <span className="text-slate-500">Venda FIPE</span>
@@ -1398,9 +1416,10 @@ export default function FipeDepreciationPage() {
               </div>
 
               <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
-                <div>Taxa = (Valor final / Valor inicial) ^ (1 / anos) - 1</div>
-                <div>Valor futuro = Base * (1 + taxa) ^ tempo</div>
-                <div>Venda futura = Valor futuro * Venda FIPE</div>
+                <div>Taxa = (FIPE_final / FIPE_inicial) ^ (1 / FRACAOANO) - 1</div>
+                <div>Venda PP = PP x (1 + taxa) ^ FRACAOANO(ini, fim)</div>
+                <div>Venda Estimada = Aquisicao x (1 + taxa) ^ FRACAOANO(ini, fim)</div>
+                <div>Venda Futura = Venda PP x % Venda FIPE</div>
               </div>
 
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -1419,9 +1438,14 @@ export default function FipeDepreciationPage() {
                 <div className="text-xs text-slate-500">Preco publico base: {formatBRL(acquisitionValue)} | 0km-Fipe</div>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Valor projetado</div>
-                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValue)}</div>
-                <div className="text-xs text-slate-500">Tempo: {effectiveYears.toFixed(2).replace('.', ',')} anos</div>
+                <div className="text-xs uppercase text-slate-500 font-semibold">Venda PP ({effectiveMonths}m)</div>
+                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValuePP)}</div>
+                <div className="text-xs text-slate-500">Sobre preco publico 0km</div>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div className="text-xs uppercase text-slate-500 font-semibold">Venda Estimada ({effectiveMonths}m)</div>
+                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValueEstimated)}</div>
+                <div className="text-xs text-slate-500">Sobre preco de aquisicao</div>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                 <div className="text-xs uppercase text-slate-500 font-semibold">Venda futura estimada</div>
