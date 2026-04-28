@@ -14,10 +14,15 @@ import {
   ChartLine,
   Download,
   TrendingDown,
+  DollarSign,
+  Settings,
+  MoreVertical,
+  Info,
+  Calendar,
+  RotateCcw,
 } from 'lucide-react';
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -40,8 +45,8 @@ const schema = z.object({
   codigoFipe: z.string().optional(),
   modeloReferencia: z.string().optional(),
   anoModelo: z.coerce.number().int().min(0, 'Ano invalido.').max(2100, 'Ano invalido.'),
-  valorAquisicao: z.coerce.number().min(0, 'Informe um valor de aquisicao valido.'),
-  precoPP: z.coerce.number().min(0, 'Informe o preco publico.').optional(),
+  precoPP: z.coerce.number().min(0, 'Informe o preco publico.'),
+  descontoFrota: z.coerce.number().min(0).max(100),
   prazoMeses: z.coerce.number().int().min(1, 'Prazo minimo de 1 mes.').max(120, 'Prazo maximo de 120 meses.'),
   dataInicial: z.string().optional(),
   dataFinal: z.string().optional(),
@@ -76,8 +81,8 @@ function loadPersistedFipePageState(): PersistedFipePageState {
       codigoFipe: typeof parsed.codigoFipe === 'string' ? parsed.codigoFipe : '',
       modeloReferencia: typeof parsed.modeloReferencia === 'string' ? parsed.modeloReferencia : '',
       anoModelo: Number.isFinite(Number(parsed.anoModelo)) ? Number(parsed.anoModelo) : new Date().getFullYear(),
-      valorAquisicao: Number.isFinite(Number(parsed.valorAquisicao)) ? Number(parsed.valorAquisicao) : 0,
       precoPP: Number.isFinite(Number(parsed.precoPP)) ? Number(parsed.precoPP) : 0,
+      descontoFrota: Number.isFinite(Number(parsed.descontoFrota)) ? Number(parsed.descontoFrota) : 0,
       prazoMeses: Number.isFinite(Number(parsed.prazoMeses)) ? Number(parsed.prazoMeses) : 30,
       dataInicial: typeof parsed.dataInicial === 'string' ? parsed.dataInicial : '',
       dataFinal: typeof parsed.dataFinal === 'string' ? parsed.dataFinal : '',
@@ -263,35 +268,19 @@ function toDateInputValue(value: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function formatDateBR(value: Date | null): string {
-  if (!value) return '-';
-  return value.toLocaleDateString('pt-BR');
-}
-
-function findNearestPoint(points: FipeHistoryPoint[], target: Date): FipeHistoryPoint | null {
-  if (points.length === 0) return null;
-
-  let nearest = points[0];
-  let nearestDistance = Math.abs(points[0].date.getTime() - target.getTime());
-
-  for (let i = 1; i < points.length; i += 1) {
-    const point = points[i];
-    const distance = Math.abs(point.date.getTime() - target.getTime());
-    if (distance < nearestDistance) {
-      nearest = point;
-      nearestDistance = distance;
-    }
-  }
-
-  return nearest;
-}
-
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 }
 
 function formatPct(value: number): string {
   return `${(value * 100).toFixed(2).replace('.', ',')}%`;
+}
+
+function monthDiff(from: Date, to: Date): number {
+  const years = to.getFullYear() - from.getFullYear();
+  const months = to.getMonth() - from.getMonth();
+  const total = years * 12 + months;
+  return Math.max(1, total);
 }
 
 function exportFipeHistoryToExcel(
@@ -337,11 +326,18 @@ function exportFipeHistoryToExcel(
   XLSX.writeFile(workbook, filename);
 }
 
-function monthDiff(from: Date, to: Date): number {
-  const years = to.getFullYear() - from.getFullYear();
-  const months = to.getMonth() - from.getMonth();
-  const total = years * 12 + months;
-  return Math.max(1, total);
+// Equivalente ao FRAÇÃOANO do Excel (base 30/360)
+function yearFraction(start: Date, end: Date): number {
+  const d1 = start.getDate();
+  const m1 = start.getMonth() + 1;
+  const y1 = start.getFullYear();
+
+  const d2 = end.getDate();
+  const m2 = end.getMonth() + 1;
+  const y2 = end.getFullYear();
+
+  const days = (y2 - y1) * 360 + (m2 - m1) * 30 + (d2 - d1);
+  return days / 360;
 }
 
 export default function FipeDepreciationPage() {
@@ -429,8 +425,8 @@ export default function FipeDepreciationPage() {
       codigoFipe: persistedPageState.codigoFipe || '',
       modeloReferencia: persistedPageState.modeloReferencia || '',
       anoModelo: persistedPageState.anoModelo || new Date().getFullYear(),
-      valorAquisicao: Number.isFinite(persistedPageState.valorAquisicao) ? Number(persistedPageState.valorAquisicao) : 0,
-      precoPP: Number.isFinite(Number(persistedPageState.precoPP)) ? Number(persistedPageState.precoPP) : 0,
+      precoPP: Number.isFinite(persistedPageState.precoPP) ? Number(persistedPageState.precoPP) : 0,
+      descontoFrota: Number.isFinite(persistedPageState.descontoFrota) ? Number(persistedPageState.descontoFrota) : 0,
       prazoMeses: Number.isFinite(persistedPageState.prazoMeses) ? Number(persistedPageState.prazoMeses) : 30,
       dataInicial: persistedPageState.dataInicial || '',
       dataFinal: persistedPageState.dataFinal || '',
@@ -446,8 +442,19 @@ export default function FipeDepreciationPage() {
   const codigoFipe = form.watch('codigoFipe');
   const modeloReferencia = form.watch('modeloReferencia');
   const anoModelo = form.watch('anoModelo');
-  const valorAquisicao = form.watch('valorAquisicao');
   const precoPP = form.watch('precoPP');
+  const descontoFrota = form.watch('descontoFrota');
+
+  const acquisitionValueCalculated = useMemo(() => {
+    const pp = Number(precoPP);
+    const desconto = Number(descontoFrota);
+    if (!pp) return 0;
+    if (!desconto) return pp;
+    return pp * (1 - desconto / 100);
+  }, [precoPP, descontoFrota]);
+
+  const acquisitionValue = acquisitionValueCalculated;
+
   const prazoMeses = form.watch('prazoMeses');
   const dataInicial = form.watch('dataInicial');
   const dataFinal = form.watch('dataFinal');
@@ -460,6 +467,10 @@ export default function FipeDepreciationPage() {
   const [historySortDir, setHistorySortDir] = useState<'asc' | 'desc'>('desc');
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredModeloReferencia = useDeferredValue(modeloReferencia);
+
+  const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false);
+  const [isFormulasExpanded, setIsFormulasExpanded] = useState(false);
+  const [historyView, setHistoryView] = useState<'mensal' | 'anual'>('mensal');
 
   const selectedVehiclesData = useMemo(() => {
     if (selectedVehicleKeys.length === 0) return [];
@@ -511,8 +522,13 @@ export default function FipeDepreciationPage() {
     if (mode !== 'frota') return;
     if (selectedVehiclesData.length === 0) return;
 
-    const avgAcquisition = selectedVehiclesData.reduce((sum, vehicle) => sum + vehicle.valorAquisicao, 0) / selectedVehiclesData.length;
-    form.setValue('valorAquisicao', Number(avgAcquisition.toFixed(2)), { shouldValidate: true });
+    // No modo frota, valorAquisicao da dim_frota já é o preço com desconto.
+    // Preenche como precoPP por ora — usuário pode ajustar manualmente.
+    const avgAcquisition = selectedVehiclesData.reduce(
+      (sum, v) => sum + v.valorAquisicao, 0
+    ) / selectedVehiclesData.length;
+    form.setValue('precoPP', Number(avgAcquisition.toFixed(2)), { shouldValidate: true });
+    form.setValue('descontoFrota', 0, { shouldValidate: true });
 
     const dominantModel = pickMostFrequent(selectedVehiclesData.map((vehicle) => vehicle.modelo));
     if (dominantModel) {
@@ -558,8 +574,8 @@ export default function FipeDepreciationPage() {
         codigoFipe: codigoFipe || '',
         modeloReferencia: modeloReferencia || '',
         anoModelo: Number.isFinite(anoModelo) ? anoModelo : new Date().getFullYear(),
-        valorAquisicao: Number.isFinite(valorAquisicao) ? valorAquisicao : 0,
         precoPP: Number.isFinite(Number(precoPP)) ? Number(precoPP) : 0,
+        descontoFrota: Number.isFinite(Number(descontoFrota)) ? Number(descontoFrota) : 0,
         prazoMeses: Number.isFinite(prazoMeses) ? prazoMeses : 30,
         dataInicial: dataInicial || '',
         dataFinal: dataFinal || '',
@@ -571,7 +587,27 @@ export default function FipeDepreciationPage() {
     }, 250);
 
     return () => window.clearTimeout(handle);
-  }, [mode, selectedVehicleKeys, categoriaVeiculo, codigoFipe, modeloReferencia, anoModelo, valorAquisicao, precoPP, prazoMeses, dataInicial, dataFinal, tipoCalculo, taxaManualAnual, percentualVendaFipe, vehicleSearch]);
+  }, [mode, selectedVehicleKeys, categoriaVeiculo, codigoFipe, modeloReferencia, anoModelo, acquisitionValue, precoPP, prazoMeses, dataInicial, dataFinal, tipoCalculo, taxaManualAnual, percentualVendaFipe, vehicleSearch]);
+
+  const handleClearData = () => {
+    form.reset({
+      mode: 'frota',
+      selectedVehicles: [],
+      categoriaVeiculo: '',
+      codigoFipe: '',
+      modeloReferencia: '',
+      anoModelo: new Date().getFullYear(),
+      precoPP: 0,
+      descontoFrota: 0,
+      prazoMeses: 30,
+      dataInicial: '',
+      dataFinal: '',
+      tipoCalculo: 'exponential',
+      taxaManualAnual: undefined,
+      percentualVendaFipe: 80,
+    });
+    setVehicleSearch('');
+  };
 
   const groupedFipeSeries = useMemo(() => {
     const modelHints = new Map<string, string>();
@@ -828,60 +864,56 @@ export default function FipeDepreciationPage() {
   const dataInicialDate = useMemo(() => toDate(dataInicial), [dataInicial]);
   const dataFinalDate = useMemo(() => toDate(dataFinal), [dataFinal]);
 
-  // FRAÇÃOANO (basis ACT/ACT) entre data inicial e final; fallback months/12
-  const effectiveYears = useMemo(() => {
-    const start = dataInicialDate;
-    const end = dataFinalDate;
-    if (start && end && end > start) {
-      const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-      const y = start.getFullYear();
-      const isLeap = (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));
-      const daysInYear = isLeap ? 366 : 365;
-      return days / daysInYear;
-    }
-    return effectiveMonths / 12;
-  }, [dataInicialDate, dataFinalDate, effectiveMonths]);
-
   const currentFipeHistory = useMemo<FipeHistoryPoint[]>(() => {
     return resolvedFipeMatch.history;
   }, [resolvedFipeMatch]);
 
-  const rateFipeHistory = useMemo<FipeHistoryPoint[]>(() => {
+  // Anos do contrato — FRAÇÃOANO(dataInicial, dataFinal)
+  const projectionYears = useMemo(() => {
+    const start = dataInicialDate || new Date();
+    const end = dataFinalDate;
+    if (end && end > start) return yearFraction(start, end);
+    return effectiveMonths / 12;
+  }, [dataInicialDate, dataFinalDate, effectiveMonths]);
+
+  const annualFipeHistory = useMemo(() => {
     if (currentFipeHistory.length === 0) return [];
 
-    const firstPoint = currentFipeHistory[0];
-    const lastPoint = currentFipeHistory[currentFipeHistory.length - 1];
+    const sorted = [...currentFipeHistory]
+      .filter(p => p && p.date instanceof Date)
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
 
-    const startTarget = dataInicialDate || firstPoint.date;
-    const endTarget = dataFinalDate || lastPoint.date;
+    if (sorted.length === 0) return [];
+    const referenceMonth = sorted[0].date.getMonth();
 
-    const nearestStart = findNearestPoint(currentFipeHistory, startTarget) || firstPoint;
-    const nearestEnd = findNearestPoint(currentFipeHistory, endTarget) || lastPoint;
-
-    const ordered = [nearestStart, nearestEnd].sort((a, b) => a.date.getTime() - b.date.getTime());
-    if (ordered[0].date.getTime() === ordered[1].date.getTime()) {
-      return [ordered[0]];
+    const byYear = new Map<number, FipeHistoryPoint>();
+    for (const point of currentFipeHistory) {
+      if (point && point.date instanceof Date && point.date.getMonth() === referenceMonth) {
+        const year = point.date.getFullYear();
+        const existing = byYear.get(year);
+        if (!existing || point.date > existing.date) {
+          byYear.set(year, point);
+        }
+      }
     }
 
-    return ordered;
-  }, [currentFipeHistory, dataInicialDate, dataFinalDate]);
-
-  const rateReferenceSet = useMemo(() => {
-    return new Set(rateFipeHistory.map((point) => point.date.getTime()));
-  }, [rateFipeHistory]);
+    return Array.from(byYear.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [currentFipeHistory]);
 
   const selectedMethod = (tipoCalculo === 'linear' ? 'linear' : 'exponential') as DepreciationMethod;
 
-  const acquisitionValue = Number(valorAquisicao) || 0;
-
   const depreciation = useDepreciation({
-    acquisitionValue, // preço público − desconto (digitado pelo usuário)
-    precoPP: Number(precoPP) > 0 ? Number(precoPP) : acquisitionValue,
+    acquisitionValue: acquisitionValueCalculated,
+    precoPP: Number(precoPP) || acquisitionValueCalculated,
     months: effectiveMonths,
     method: selectedMethod,
-    fipeHistory: rateFipeHistory,
-    rateYears: effectiveYears,
-    manualAnnualRate: Number.isFinite(Number(taxaManualAnual)) ? Number(taxaManualAnual) / 100 : null,
+    fipeHistory: annualFipeHistory,
+    projectionYears,
+    startDate: dataInicialDate,
+    endDate: dataFinalDate,
+    manualAnnualRate: Number.isFinite(Number(taxaManualAnual))
+      ? Number(taxaManualAnual) / 100
+      : null,
   });
 
   const saleFipeFactor = useMemo(() => {
@@ -894,8 +926,10 @@ export default function FipeDepreciationPage() {
     return depreciation.futureValuePP * saleFipeFactor;
   }, [depreciation.futureValuePP, saleFipeFactor]);
 
-  const historyWithVariation = useMemo(() => {
-    const withDiff = currentFipeHistory.map((point, index, arr) => {
+  const displayHistory = useMemo(() => {
+    const source = historyView === 'anual' ? annualFipeHistory : currentFipeHistory;
+
+    const withDiff = source.map((point, index, arr) => {
       const prev = index > 0 ? arr[index - 1] : null;
       const diff = prev ? point.value - prev.value : 0;
       const diffPct = prev && prev.value > 0 ? diff / prev.value : 0;
@@ -911,7 +945,7 @@ export default function FipeDepreciationPage() {
       };
     });
 
-    const sorted = [...withDiff].sort((a, b) => {
+    return [...withDiff].sort((a, b) => {
       const dir = historySortDir === 'asc' ? 1 : -1;
       switch (historySortKey) {
         case 'date':
@@ -932,47 +966,55 @@ export default function FipeDepreciationPage() {
           return 0;
       }
     });
-
-    return sorted;
-  }, [currentFipeHistory, historySortKey, historySortDir]);
+  }, [historyView, annualFipeHistory, currentFipeHistory, historySortKey, historySortDir]);
 
   const chartData = useMemo(() => {
-    return depreciation.timeline.map((p) => ({
+    const historical = (historyView === 'anual' ? annualFipeHistory : []).map(p => {
+      const refDate = dataInicialDate || new Date();
+      const m = -monthDiff(p.date, refDate);
+      return {
+        month: m,
+        label: p.mesFipe || p.date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }),
+        projetado: null,
+        historico: p.value,
+        fipeReferencia: null,
+      };
+    });
+
+    const projected = depreciation.timeline.map((p) => ({
       month: p.month,
+      label: `Mês ${p.month}`,
       projetado: p.value,
+      historico: null,
       fipeReferencia: depreciation.latestFipe,
     }));
-  }, [depreciation.timeline, depreciation.latestFipe]);
 
-  const detectedFrotaColumns = useMemo(() => {
-    if (!Array.isArray(frotaRaw) || frotaRaw.length === 0) return null;
-    const sample = frotaRaw[0] as AnyRecord;
+    return [...historical, ...projected].sort((a, b) => a.month - b.month);
+  }, [depreciation.timeline, depreciation.latestFipe, historyView, annualFipeHistory, dataInicialDate]);
 
-    return {
-      id: frotaAliases.id.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      codigoFipe: frotaAliases.codigoFipe.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      anoModelo: frotaAliases.anoModelo.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      categoria: frotaAliases.categoria.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      valorAquisicao: frotaAliases.valorAquisicao.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      dataAquisicao: frotaAliases.dataAquisicao.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-    };
-  }, [frotaRaw]);
 
-  const detectedFipeColumns = useMemo(() => {
-    if (!Array.isArray(fipeRaw) || fipeRaw.length === 0) return null;
-    const sample = fipeRaw[0] as AnyRecord;
-
-    return {
-      codigoFipe: fipeAliases.codigoFipe.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      anoModelo: fipeAliases.anoModelo.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      modelo: fipeAliases.modelo.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      data: fipeAliases.data.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-      valor: fipeAliases.valor.find((k) => Object.prototype.hasOwnProperty.call(sample, k)) || 'nao encontrado',
-    };
-  }, [fipeRaw]);
 
   const isLoading = loadingFrota || loadingFipe;
   const hasDataError = Boolean(errorFrota || errorFipe);
+
+
+  const chartYMin = useMemo(() => {
+    const values = [
+      depreciation.futureValueEstimated,
+      ...(historyView === 'anual' ? annualFipeHistory.map(p => p.value) : [])
+    ].filter(v => Number.isFinite(v) && v > 0);
+    if (values.length === 0) return 0;
+    return Math.floor(Math.min(...values) * 0.85);
+  }, [depreciation.futureValueEstimated, historyView, annualFipeHistory]);
+
+  const chartYMax = useMemo(() => {
+    const values = [
+      acquisitionValueCalculated,
+      ...(historyView === 'anual' ? annualFipeHistory.map(p => p.value) : [])
+    ].filter(v => Number.isFinite(v) && v > 0);
+    if (values.length === 0) return 100000;
+    return Math.ceil(Math.max(...values) * 1.05);
+  }, [acquisitionValueCalculated, historyView, annualFipeHistory]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -986,8 +1028,8 @@ export default function FipeDepreciationPage() {
               <ChartLine className="w-6 h-6 text-blue-700" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Depreciacao FIPE</h1>
-              <p className="text-xs text-slate-500">Projecao de valor futuro com base no historico FIPE e taxa anual</p>
+              <h1 className="text-xl font-bold text-slate-900 leading-tight">Depreciacao FIPE</h1>
+              <p className="text-xs text-slate-500">Precificação de depreciação para terceirização de frota</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1016,9 +1058,19 @@ export default function FipeDepreciationPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-blue-600" />
-              <h2 className="font-semibold text-slate-800">Parametros</h2>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-blue-600" />
+                <h2 className="font-semibold text-slate-800">Parametros</h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearData}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Limpar Dados
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -1039,13 +1091,13 @@ export default function FipeDepreciationPage() {
             </div>
 
             {mode === 'frota' && (
-              <div className="space-y-3">
+              <div className="space-y-3 pb-2">
                 <div className="space-y-1">
                   <label className="text-xs text-slate-600 font-medium">Categoria</label>
                   <select
                     value={categoriaVeiculo || ''}
                     onChange={(e) => form.setValue('categoriaVeiculo', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
                   >
                     <option value="">Todas as categorias</option>
                     {availableCategories.map((category) => (
@@ -1059,7 +1111,7 @@ export default function FipeDepreciationPage() {
                   <input
                     value={vehicleSearch}
                     onChange={(e) => setVehicleSearch(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
                     placeholder="Placa, modelo, categoria, codigo FIPE..."
                   />
                 </div>
@@ -1068,59 +1120,43 @@ export default function FipeDepreciationPage() {
                   <button
                     type="button"
                     onClick={() => updateSelectedVehicles([...selectedVehicleKeys, ...visibleVehicles.map((vehicle) => vehicle.key)])}
-                    className="px-2 py-1.5 rounded border border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
+                    className="px-2 py-1.5 rounded border border-slate-200 text-[10px] uppercase font-bold text-slate-600 hover:bg-slate-50 transition"
                   >
                     Selecionar filtrados
                   </button>
                   <button
                     type="button"
                     onClick={() => updateSelectedVehicles([])}
-                    className="px-2 py-1.5 rounded border border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
+                    className="px-2 py-1.5 rounded border border-slate-200 text-[10px] uppercase font-bold text-slate-600 hover:bg-slate-50 transition"
                   >
                     Limpar
                   </button>
                 </div>
 
-                <div className="max-h-52 overflow-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                <div className="max-h-52 overflow-auto rounded-lg border border-slate-200 divide-y divide-slate-100 bg-slate-50/50">
                   {visibleVehicles.length > 0 ? visibleVehicles.map((vehicle) => {
                     const checked = selectedVehicleKeys.includes(vehicle.key);
                     return (
-                      <label key={vehicle.key} className="flex items-start gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                      <label key={vehicle.key} className="flex items-start gap-2 px-3 py-2 hover:bg-white cursor-pointer transition">
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleVehicleSelection(vehicle.key)}
-                          className="mt-0.5"
+                          className="mt-1 rounded text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="text-xs text-slate-700 leading-5">
-                          <strong>{vehicle.placa || 'Sem placa'}</strong> - {vehicle.modelo} ({vehicle.anoModelo})
+                        <span className="text-xs text-slate-700 leading-relaxed">
+                          <span className="font-bold">{vehicle.placa || 'Sem placa'}</span> - {vehicle.modelo} ({vehicle.anoModelo})
                           <br />
-                          <span className="text-slate-500">{vehicle.categoria} | FIPE {vehicle.codigoFipe}</span>
+                          <span className="text-slate-500 text-[10px] uppercase tracking-wider">{vehicle.categoria} | FIPE {vehicle.codigoFipe}</span>
                         </span>
                       </label>
                     );
                   }) : (
-                    <div className="px-3 py-4 text-xs text-center text-slate-500">Nenhum veiculo encontrado para os filtros.</div>
+                    <div className="px-3 py-6 text-xs text-center text-slate-400">Nenhum veiculo encontrado.</div>
                   )}
-                </div>
-
-                <div className="text-xs text-slate-500">
-                  {selectedVehicleKeys.length} veiculo(s) selecionado(s)
-                  {filteredVehicles.length > visibleVehicles.length ? ` | exibindo os primeiros ${visibleVehicles.length} de ${filteredVehicles.length}` : ''}
                 </div>
               </div>
             )}
-
-            <div className="space-y-1">
-              <label className="text-xs text-slate-600 font-medium">Codigo FIPE {mode === 'manual' ? '(opcional)' : ''}</label>
-              <input
-                value={codigoFipe || ''}
-                onChange={(e) => form.setValue('codigoFipe', e.target.value, { shouldValidate: true })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                placeholder="Ex: 0044821"
-              />
-              {form.formState.errors.codigoFipe && <p className="text-xs text-red-600">{form.formState.errors.codigoFipe.message}</p>}
-            </div>
 
             <div className="space-y-1">
               <label className="text-xs text-slate-600 font-medium">Modelo de referencia (aproximacao)</label>
@@ -1136,11 +1172,11 @@ export default function FipeDepreciationPage() {
                     onBlur={() => {
                       window.setTimeout(() => setManualModelFocused(false), 120);
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                    placeholder="Digite para pesquisar o modelo do banco"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                    placeholder="Digite para pesquisar..."
                   />
                   {manualModelFocused && (deferredModeloReferencia ?? '').trim() && manualModelSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                    <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white shadow-xl">
                       {manualModelSuggestions.map((suggestion) => {
                         const normalizedQuery = normalizeText(deferredModeloReferencia ?? '');
                         const normalizedModel = normalizeText(suggestion.model);
@@ -1161,21 +1197,21 @@ export default function FipeDepreciationPage() {
                               form.setValue('codigoFipe', '', { shouldValidate: true });
                               setManualModelFocused(false);
                             }}
-                            className="w-full text-left px-3 py-2 border-b border-slate-100 last:border-b-0 hover:bg-blue-50 transition-colors"
+                            className="w-full text-left px-4 py-2.5 border-b border-slate-50 last:border-b-0 hover:bg-blue-50 transition-colors"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="min-w-0 text-sm text-slate-800 truncate">
                                 {hasMatch ? (
                                   <>
                                     {before}
-                                    <span className="rounded bg-yellow-100 px-0.5 text-slate-900">{matchText}</span>
+                                    <span className="font-bold text-blue-700">{matchText}</span>
                                     {after}
                                   </>
                                 ) : (
                                   suggestion.model
                                 )}
                               </div>
-                              <span className="text-[11px] text-slate-500 whitespace-nowrap">{suggestion.yearCount} ano(s)</span>
+                              <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded whitespace-nowrap uppercase">{suggestion.yearCount} anos</span>
                             </div>
                           </button>
                         );
@@ -1187,18 +1223,24 @@ export default function FipeDepreciationPage() {
                 <input
                   value={modeloReferencia || ''}
                   onChange={(e) => form.setValue('modeloReferencia', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50/50"
                   placeholder="Ex: ONIX 1.0 LT FLEX"
                 />
               )}
-              <p className="text-[11px] text-slate-500">
-                {mode === 'manual'
-                  ? 'Ao selecionar o modelo, o historico FIPE completo e aberto automaticamente.'
-                  : 'No modo manual, quando nao houver serie exata, o sistema busca o modelo/ano mais proximo.'}
-              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-slate-600 font-medium">Codigo FIPE (opcional)</label>
+              <input
+                value={codigoFipe || ''}
+                onChange={(e) => form.setValue('codigoFipe', e.target.value, { shouldValidate: true })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                placeholder="Ex: 004433-7"
+              />
+              {form.formState.errors.codigoFipe && <p className="text-[10px] text-rose-600 mt-1">{form.formState.errors.codigoFipe.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 font-medium">Ano modelo</label>
                 {mode === 'manual' ? (
@@ -1215,13 +1257,13 @@ export default function FipeDepreciationPage() {
                         form.setValue('codigoFipe', '', { shouldValidate: true });
                       }
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
                     disabled={manualYearOptions.length === 0}
                   >
-                    <option value="">Todos os anos</option>
+                    <option value="">Todos</option>
                     {manualYearOptions.map((option) => (
                       <option key={`${option.codigoFipe}-${option.anoModelo}`} value={option.anoModelo}>
-                        Ano modelo {option.anoModelo}
+                        {option.anoModelo}
                       </option>
                     ))}
                   </select>
@@ -1230,112 +1272,133 @@ export default function FipeDepreciationPage() {
                     type="number"
                     value={Number.isFinite(anoModelo) ? anoModelo : ''}
                     onChange={(e) => form.setValue('anoModelo', Number(e.target.value), { shouldValidate: true })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
                   />
                 )}
-                {form.formState.errors.anoModelo && <p className="text-xs text-red-600">{form.formState.errors.anoModelo.message}</p>}
+                {form.formState.errors.anoModelo && <p className="text-[10px] text-rose-600 mt-1">{form.formState.errors.anoModelo.message}</p>}
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-600 font-medium">Prazo (meses)</label>
+                <label className="text-xs text-slate-600 font-medium">Prazo do contrato (meses)</label>
                 <input
                   type="number"
                   value={Number.isFinite(prazoMeses) ? prazoMeses : 30}
                   onChange={(e) => form.setValue('prazoMeses', Number(e.target.value), { shouldValidate: true })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
                 />
-                {form.formState.errors.prazoMeses && <p className="text-xs text-red-600">{form.formState.errors.prazoMeses.message}</p>}
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-slate-600 font-medium">Preco Publico 0km (R$)</label>
-              <input
-                type="number"
-                value={Number.isFinite(Number(precoPP)) && Number(precoPP) > 0 ? Number(precoPP) : ''}
-                onChange={(e) => form.setValue('precoPP', Number(e.target.value), { shouldValidate: true })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                placeholder="Ex: 127340.00"
-              />
-              <p className="text-[11px] text-slate-500">
-                Preco de tabela sem desconto. Valor de Aquisicao = PP - desconto de frota.
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs text-slate-600 font-medium">Valor de aquisicao (PP - desconto) (R$)</label>
-              <input
-                type="number"
-                value={Number.isFinite(valorAquisicao) ? valorAquisicao : ''}
-                onChange={(e) => form.setValue('valorAquisicao', Number(e.target.value), { shouldValidate: true })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-              />
-              {form.formState.errors.valorAquisicao && <p className="text-xs text-red-600">{form.formState.errors.valorAquisicao.message}</p>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="pt-2 border-t border-slate-100 space-y-3">
               <div className="space-y-1">
-                <label className="text-xs text-slate-600 font-medium">Data inicial (opcional)</label>
+                <label className="text-xs text-slate-600 font-medium">Preço Público 0km (R$)</label>
                 <input
-                  type="date"
-                  value={dataInicial || ''}
-                  onChange={(e) => form.setValue('dataInicial', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                  type="number"
+                  value={Number(precoPP) > 0 ? Number(precoPP) : ''}
+                  onChange={(e) => form.setValue('precoPP', Number(e.target.value), { shouldValidate: true })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  placeholder="Ex: 127340"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-600 font-medium">Data final (opcional)</label>
-                <input
-                  type="date"
-                  value={dataFinal || ''}
-                  onChange={(e) => form.setValue('dataFinal', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs text-slate-600 font-medium">Modelo de calculo</label>
-                <select
-                  value={tipoCalculo}
-                  onChange={(e) => form.setValue('tipoCalculo', e.target.value as 'exponential' | 'linear')}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                >
-                  <option value="exponential">Exponencial (padrao)</option>
-                  <option value="linear">Linear</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-600 font-medium">Venda FIPE (%)</label>
+                <label className="text-xs text-slate-600 font-medium">Desconto de Frota (%)</label>
                 <input
                   type="number"
                   step="0.01"
-                  value={Number.isFinite(Number(percentualVendaFipe)) ? Number(percentualVendaFipe) : ''}
-                  onChange={(e) => form.setValue('percentualVendaFipe', Number(e.target.value), { shouldValidate: true })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                  value={Number(descontoFrota) > 0 ? Number(descontoFrota) : ''}
+                  onChange={(e) => form.setValue('descontoFrota', Number(e.target.value), { shouldValidate: true })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  placeholder="Ex: 21,5"
                 />
-                {form.formState.errors.percentualVendaFipe && <p className="text-xs text-red-600">{form.formState.errors.percentualVendaFipe.message}</p>}
+              </div>
+
+              <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Preço de Aquisição Real</label>
+                <div className="text-lg font-bold text-slate-700 mt-0.5">{formatBRL(acquisitionValueCalculated)}</div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  PP - {Number(descontoFrota).toFixed(1)}% = {formatBRL(acquisitionValueCalculated)}
+                </p>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-slate-600 font-medium">Taxa anual manual (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={Number.isFinite(Number(taxaManualAnual)) ? Number(taxaManualAnual) : ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  form.setValue('taxaManualAnual', value === '' ? undefined : Number(value));
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                placeholder="Use quando houver poucos dados FIPE"
-              />
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-600 font-medium">Início do contrato</label>
+                  <input
+                    type="date"
+                    value={dataInicial || ''}
+                    onChange={(e) => form.setValue('dataInicial', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-600 font-medium">Fim do contrato</label>
+                  <input
+                    type="date"
+                    value={dataFinal || ''}
+                    onChange={(e) => form.setValue('dataFinal', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-600 font-medium">Modelo de calculo</label>
+                  <select
+                    value={tipoCalculo}
+                    onChange={(e) => form.setValue('tipoCalculo', e.target.value as 'exponential' | 'linear')}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  >
+                    <option value="exponential">Exponencial</option>
+                    <option value="linear">Linear</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-600 font-medium">Venda FIPE (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={Number.isFinite(Number(percentualVendaFipe)) ? Number(percentualVendaFipe) : ''}
+                    onChange={(e) => form.setValue('percentualVendaFipe', Number(e.target.value), { shouldValidate: true })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
-              Prazo efetivo: <span className="font-semibold text-slate-700">{effectiveMonths} meses</span>
-              {dataFinal ? ' (calculado entre a data inicial de referencia e a data final)' : ''}
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsAdvancedExpanded(!isAdvancedExpanded)}
+                className="w-full flex items-center justify-between text-xs text-slate-500 font-semibold py-2 px-1 hover:text-slate-800 transition"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Settings className="w-3.5 h-3.5" />
+                  Configurações avançadas
+                </div>
+                {isAdvancedExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+
+              {isAdvancedExpanded && (
+                <div className="pt-2 pb-1">
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-600 font-medium">Taxa anual manual (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={Number.isFinite(Number(taxaManualAnual)) ? Number(taxaManualAnual) : ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        form.setValue('taxaManualAnual', value === '' ? undefined : Number(value));
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition"
+                      placeholder="Sobrescrever taxa FIPE"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {selectedVehiclesData.length > 0 && mode === 'frota' && (
@@ -1366,271 +1429,478 @@ export default function FipeDepreciationPage() {
                 <span>{depreciation.reason}</span>
               </div>
             )}
-
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingDown className="w-4 h-4 text-rose-600" />
-                <h3 className="font-semibold text-slate-800">Cenario automatizado (modelo Excel)</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Valor FIPE inicial (taxa)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.initialFipe)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Valor FIPE final (taxa)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.latestFipe)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Data inicial da projecao</span>
-                  <span className="font-semibold text-slate-800">{dataInicialDate ? formatDateBR(dataInicialDate) : 'Hoje'}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Data final da projecao</span>
-                  <span className="font-semibold text-slate-800">{dataFinalDate ? formatDateBR(dataFinalDate) : `${effectiveMonths} meses (prazo)`}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Em anos</span>
-                  <span className="font-semibold text-slate-800">{effectiveYears.toFixed(2).replace('.', ',')}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Depreciacao anual</span>
-                  <span className="font-semibold text-slate-800">{formatPct(depreciation.annualRate)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Venda apos {effectiveMonths} meses (PP)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValuePP)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Venda apos {effectiveMonths} meses (Estimada)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValueEstimated)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Venda FIPE</span>
-                  <span className="font-semibold text-slate-800">{formatPct(saleFipeFactor)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Valor de venda futuro (estimado)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(estimatedFutureSale)}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
-                <div>Taxa = (FIPE_final / FIPE_inicial) ^ (1 / FRACAOANO) - 1</div>
-                <div>Venda PP = PP x (1 + taxa) ^ FRACAOANO(ini, fim)</div>
-                <div>Venda Estimada = Aquisicao x (1 + taxa) ^ FRACAOANO(ini, fim)</div>
-                <div>Venda Futura = Venda PP x % Venda FIPE</div>
-              </div>
-
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                <div className="font-semibold mb-1">Insight automatico</div>
-                <div>{depreciation.insight}</div>
-              </div>
-            </div>
           </div>
 
           <div className="lg:col-span-2 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Taxa anual utilizada</div>
-                <div className="text-2xl font-bold text-slate-800">{formatPct(depreciation.annualRate)}</div>
-                <div className="text-xs text-slate-500">Fonte: {depreciation.annualRateSource === 'fipe' ? 'Historico FIPE' : 'Manual'}</div>
-                <div className="text-xs text-slate-500">Preco publico base: {formatBRL(acquisitionValue)} | 0km-Fipe</div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Venda PP ({effectiveMonths}m)</div>
-                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValuePP)}</div>
-                <div className="text-xs text-slate-500">Sobre preco publico 0km</div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Venda Estimada ({effectiveMonths}m)</div>
-                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValueEstimated)}</div>
-                <div className="text-xs text-slate-500">Sobre preco de aquisicao</div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Venda futura estimada</div>
-                <div className="text-2xl font-bold text-slate-800">{formatBRL(estimatedFutureSale)}</div>
-                <div className="text-xs text-slate-500">Venda FIPE: {formatPct(saleFipeFactor)}</div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Depreciacao total</div>
-                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.depreciationTotal)}</div>
-                <div className="text-xs text-slate-500">Mensal: {formatBRL(depreciation.depreciationMonthly)}</div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Gap vs FIPE final</div>
-                <div className={`text-2xl font-bold ${depreciation.gapPercent >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {formatPct(depreciation.gapPercent)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-blue-200 transition group min-h-[140px] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition">
+                      <TrendingDown className="w-4 h-4" />
+                    </div>
+                    <Info className="w-3.5 h-3.5 text-slate-300" />
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider leading-tight">Taxa Anual Utilizada</div>
+                  <div className="text-xl font-black text-slate-900 mt-1">{formatPct(depreciation.annualRate)}</div>
                 </div>
-                <div className="text-xs text-slate-500">{formatBRL(depreciation.gapValue)}</div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  Janela histórica: {depreciation.rateYears.toFixed(2).replace('.', ',')} anos | Contrato: {depreciation.projectionYears.toFixed(2).replace('.', ',')} anos
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-blue-200 transition group min-h-[140px] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition">
+                      <Car className="w-4 h-4" />
+                    </div>
+                    <Info className="w-3.5 h-3.5 text-slate-300" />
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider leading-tight">Mercado Futuro (PP)</div>
+                  <div className="text-xl font-black text-slate-900 mt-1">{formatBRL(depreciation.futureValuePP)}</div>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Sobre preço público após {effectiveMonths}m</div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-blue-200 transition group min-h-[140px] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-violet-50 text-violet-600 group-hover:bg-violet-600 group-hover:text-white transition">
+                      <Car className="w-4 h-4" />
+                    </div>
+                    <Info className="w-3.5 h-3.5 text-slate-300" />
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider leading-tight">Mercado Futuro (Aquisição)</div>
+                  <div className="text-xl font-black text-slate-900 mt-1">{formatBRL(depreciation.futureValueEstimated)}</div>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Sobre custo real após {effectiveMonths}m</div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-blue-200 transition group min-h-[140px] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
+                      <DollarSign className="w-4 h-4" />
+                    </div>
+                    <Info className="w-3.5 h-3.5 text-slate-300" />
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider leading-tight">Valor de Venda Estimado</div>
+                  <div className="text-xl font-black text-slate-900 mt-1">{formatBRL(estimatedFutureSale)}</div>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 truncate">
+                  Venda PP × {formatPct(saleFipeFactor)} Venda FIPE
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-blue-200 transition group min-h-[140px] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition">
+                      <TrendingDown className="w-4 h-4" />
+                    </div>
+                    <Info className="w-3.5 h-3.5 text-slate-300" />
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider leading-tight">Depreciação Total</div>
+                  <div className="text-xl font-black text-slate-900 mt-1">{formatBRL(depreciation.depreciationTotal)}</div>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Média mensal de {formatBRL(depreciation.depreciationMonthly)}</div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-blue-200 transition group min-h-[140px] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition">
+                      <AlertCircle className="w-4 h-4" />
+                    </div>
+                    <Info className="w-3.5 h-3.5 text-slate-300" />
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider leading-tight">GAP vs FIPE Final</div>
+                  <div className={`text-xl font-black mt-1 ${depreciation.gapPercent >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {formatPct(depreciation.gapPercent)}
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Diferença nominal de {formatBRL(depreciation.gapValue)}</div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="bg-blue-600 rounded-2xl p-5 text-white shadow-lg shadow-blue-200 flex items-center gap-4 transition hover:scale-[1.01] duration-300">
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                <Info className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Insight Estratégico</div>
+                <div className="text-sm font-medium leading-relaxed">{depreciation.insight}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-6">
                 <div>
-                  <h3 className="font-semibold text-slate-800">Curva projetada de depreciacao</h3>
-                  <p className="text-xs text-slate-500">Taxa = (FIPE final / FIPE inicial)^(1/anos) - 1 | Valor futuro = Base * (1 + taxa)^tempo</p>
+                  <h3 className="font-bold text-slate-900 text-lg">Curva Projetada de Depreciação</h3>
+                  <p className="text-xs text-slate-500 mt-1">Visualização da desvalorização mensal com base no modelo {selectedMethod === 'exponential' ? 'Exponencial' : 'Linear'}</p>
                 </div>
-                <div className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-                  Metodo: {selectedMethod === 'exponential' ? 'Exponencial' : 'Linear'}
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-600" />
+                    <span className="text-slate-600 font-medium">Projeção (Aquisição)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-1 border-b-2 border-dashed border-emerald-500" />
+                    <span className="text-slate-600 font-medium">Referência FIPE</span>
+                  </div>
+                  {historyView === 'anual' && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-white" />
+                      <span className="text-slate-600 font-medium">Histórico Real</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {depreciation.timeline.length > 0 ? (
-                <div className="h-[320px]">
+                <div className="h-[380px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 8, right: 12, left: 6, bottom: 6 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                      <YAxis tickFormatter={(v) => formatBRL(Number(v)).replace('R$ ', 'R$ ')} tick={{ fontSize: 12 }} width={100} />
-                      <Tooltip formatter={(value: number) => formatBRL(value)} />
-                      <Legend />
-                      <Line type="monotone" dataKey="projetado" name="Valor projetado" stroke="#2563eb" strokeWidth={3} dot={false} />
-                      <Line type="monotone" dataKey="fipeReferencia" name="FIPE final de referencia" stroke="#16a34a" strokeDasharray="5 4" strokeWidth={2} dot={false} />
+                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                        axisLine={false}
+                        tickLine={false}
+                        dy={10}
+                        tickFormatter={(v) => v < 0 ? `${v}m` : (v === 0 ? 'Ini' : `${v}m`)}
+                      />
+                      <YAxis
+                        domain={[chartYMin, chartYMax]}
+                        tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={45}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const pData = payload.find(p => p.dataKey === 'projetado');
+                            const rData = payload.find(p => p.dataKey === 'fipeReferencia');
+                            const hData = payload.find(p => p.dataKey === 'historico');
+
+                            const projectedValue = pData ? Number(pData.value) : 0;
+                            const referenceValue = rData ? Number(rData.value) : 0;
+                            const historicalValue = hData ? Number(hData.value) : 0;
+
+                            const diff = projectedValue - referenceValue;
+                            const hasProjection = projectedValue > 0;
+                            const hasHistory = historicalValue > 0;
+
+                            const labelText = typeof label === 'number'
+                              ? (label < 0 ? `Passado (${Math.abs(label)}m)` : `Mês ${label}`)
+                              : label;
+
+                            return (
+                              <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-xl space-y-2">
+                                <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100 pb-1.5 mb-1.5">{labelText}</div>
+                                <div className="space-y-1">
+                                  {hasHistory && (
+                                    <div className="flex items-center justify-between gap-4">
+                                      <span className="text-xs text-amber-600 font-medium">FIPE Real (Histórico):</span>
+                                      <span className="text-xs font-bold text-slate-900">{formatBRL(historicalValue)}</span>
+                                    </div>
+                                  )}
+                                  {hasProjection && (
+                                    <>
+                                      <div className="flex items-center justify-between gap-4">
+                                        <span className="text-xs text-blue-600 font-medium">Valor Projetado:</span>
+                                        <span className="text-xs font-bold text-slate-900">{formatBRL(projectedValue)}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-4">
+                                        <span className="text-xs text-slate-500">Referência FIPE:</span>
+                                        <span className="text-xs font-bold text-slate-900">{formatBRL(referenceValue)}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-50">
+                                        <span className="text-[10px] font-bold uppercase text-slate-400">Diferença:</span>
+                                        <span className={`text-[10px] font-black ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {diff >= 0 ? '+' : ''}{formatBRL(diff)}
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="projetado"
+                        stroke="#2563eb"
+                        strokeWidth={4}
+                        dot={false}
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="stepAfter"
+                        dataKey="fipeReferencia"
+                        stroke="#10b981"
+                        strokeDasharray="6 6"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                      {historyView === 'anual' && (
+                        <Line
+                          type="monotone"
+                          dataKey="historico"
+                          stroke="#f59e0b"
+                          strokeWidth={0}
+                          dot={{ r: 4, fill: '#fff', stroke: '#f59e0b', strokeWidth: 2 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-                  Sem dados suficientes para plotar a curva. Ajuste os parametros ou informe taxa manual.
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 h-[380px] flex items-center justify-center text-sm text-slate-400 italic">
+                  Aguardando parâmetros para gerar a curva...
                 </div>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-blue-600" />
-                    <h3 className="font-semibold text-slate-800">Historico FIPE completo</h3>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-slate-100 rounded-xl text-slate-600">
+                    <TrendingDown className="w-5 h-5" />
                   </div>
-                  {historyWithVariation.length > 0 && (
-                    <button
-                      onClick={() => exportFipeHistoryToExcel(historyWithVariation, form.getValues('codigoFipe') || resolvedFipeMatch.matchedCode || '', form.getValues('anoModelo') || resolvedFipeMatch.matchedYear || new Date().getFullYear())}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      title="Exportar histórico FIPE para Excel"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Excel</span>
-                    </button>
+                  <h3 className="font-bold text-slate-900 text-lg">Resumo do Cálculo</h3>
+                </div>
+                <div className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded uppercase tracking-wider">Modelo Excel</div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 text-sm">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <span className="text-slate-500">Preço Público 0km</span>
+                    <span className="font-bold text-slate-900">{formatBRL(Number(precoPP))}</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <span className="text-slate-500">FIPE Inicial (base taxa)</span>
+                    <span className="font-bold text-slate-900">{formatBRL(depreciation.initialFipe)}</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <span className="text-slate-500">FIPE Final (disponível)</span>
+                    <span className="font-bold text-slate-900">{formatBRL(depreciation.latestFipe)}</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50 bg-blue-50/30 -mx-2 px-2 rounded">
+                    <span className="text-blue-700 font-medium">Preço de Aquisição Real</span>
+                    <span className="font-bold text-blue-700">{formatBRL(acquisitionValueCalculated)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <span className="text-slate-500">Janela histórica FIPE</span>
+                    <span className="font-bold text-slate-900">{depreciation.rateYears.toFixed(2).replace('.', ',')} anos</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <span className="text-slate-500">Prazo do contrato</span>
+                    <span className="font-bold text-slate-900">{depreciation.projectionYears.toFixed(2).replace('.', ',')} anos</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                    <span className="text-slate-500">Venda após contrato (PP)</span>
+                    <span className="font-bold text-slate-900">{formatBRL(depreciation.futureValuePP)}</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 bg-emerald-50/30 -mx-2 px-2 rounded">
+                    <span className="text-emerald-700 font-medium">Valor de Venda Futuro (Estimado)</span>
+                    <span className="font-bold text-emerald-700">{formatBRL(estimatedFutureSale)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsFormulasExpanded(!isFormulasExpanded)}
+                  className="flex items-center gap-2 text-[10px] font-bold text-slate-400 hover:text-slate-700 uppercase tracking-widest transition"
+                >
+                  {isFormulasExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  Ver Fórmulas de Cálculo
+                </button>
+
+                {isFormulasExpanded && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-500 bg-slate-50 p-4 rounded-xl border border-slate-100 italic">
+                    <div className="space-y-1">
+                      <div><span className="font-bold">Taxa Anual:</span> (FIPE_fim / FIPE_ini) ^ (1 / prazo_contrato) - 1</div>
+                      <div><span className="font-bold">Venda PP:</span> Preço Público * (1 + taxa) ^ prazo_contrato</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div><span className="font-bold">Venda Custo Real:</span> Aquisição * (1 + taxa) ^ prazo_contrato</div>
+                      <div><span className="font-bold">Venda Estimada:</span> Venda PP * %_Venda_FIPE</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-slate-100 rounded-xl text-slate-600">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-lg">Histórico FIPE</h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {displayHistory.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                        <button
+                          onClick={() => setHistoryView('mensal')}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition ${historyView === 'mensal'
+                              ? 'bg-white text-blue-700 shadow-sm'
+                              : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                          Mensal
+                        </button>
+                        <button
+                          onClick={() => setHistoryView('anual')}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition ${historyView === 'anual'
+                              ? 'bg-white text-blue-700 shadow-sm'
+                              : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                          Anual
+                        </button>
+                      </div>
+                      <div className="relative group">
+                        <button
+                          className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 hover:border-slate-300 transition"
+                        >
+                          Exportar
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-30 overflow-hidden">
+                          <button
+                            onClick={() => exportFipeHistoryToExcel(displayHistory, form.getValues('codigoFipe') || resolvedFipeMatch.matchedCode || '', form.getValues('anoModelo') || resolvedFipeMatch.matchedYear || new Date().getFullYear())}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-xs text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                          >
+                            <Download className="w-4 h-4" />
+                            Excel (.xlsx)
+                          </button>
+                          <button
+                            className="w-full flex items-center gap-3 px-4 py-3 text-xs text-slate-400 cursor-not-allowed transition text-left border-t border-slate-50"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                            Copiar Dados
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
+              </div>
 
-                <div className="max-h-[560px] overflow-auto border border-slate-200 rounded-lg bg-white">
-                  <table className="w-full min-w-[1100px] text-sm">
-                    <thead className="bg-slate-50 sticky top-0">
-                      <tr className="text-left text-slate-600 border-b border-slate-200">
-                        {([
-                          { key: 'modelo', label: 'Modelo', align: 'left' },
-                          { key: 'codigoFipe', label: 'Codigo FIPE', align: 'left' },
-                          { key: 'anoModelo', label: 'Ano', align: 'left' },
-                          { key: 'mesFipe', label: 'Mes FIPE', align: 'left' },
-                          { key: 'date', label: 'Data', align: 'left' },
-                          { key: 'value', label: 'Valor', align: 'right' },
-                          { key: 'diff', label: 'Variacao', align: 'right' },
-                        ] as const).map((col) => {
-                          const isActive = historySortKey === col.key;
-                          return (
-                            <th
-                              key={col.key}
-                              className={`px-2 py-2 font-semibold cursor-pointer select-none hover:bg-slate-100 ${col.align === 'right' ? 'text-right' : ''}`}
-                              onClick={() => {
-                                if (historySortKey === col.key) {
-                                  setHistorySortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-                                } else {
-                                  setHistorySortKey(col.key);
-                                  setHistorySortDir('desc');
-                                }
-                              }}
-                            >
-                              <span className={`inline-flex items-center gap-1 ${col.align === 'right' ? 'justify-end w-full' : ''}`}>
-                                {col.label}
-                                {isActive ? (
-                                  historySortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                                ) : (
-                                  <ArrowUpDown className="w-3 h-3 opacity-30" />
-                                )}
-                              </span>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {historyWithVariation.length > 0 ? (() => {
-                        // Identificar o primeiro ponto cronológico (sem variação anterior)
-                        let firstTs = Infinity;
-                        for (const r of historyWithVariation) firstTs = Math.min(firstTs, r.date.getTime());
-                        return historyWithVariation.map((row, idx) => {
-                          const isRateReference = rateReferenceSet.has(row.date.getTime());
-                          const isFirst = row.date.getTime() === firstTs;
+              <div className="max-h-[800px] overflow-x-auto border border-slate-100 rounded-xl">
+                <table className="w-full min-w-[1200px] text-sm border-collapse table-auto">
+                  <thead className="bg-slate-50/50 sticky top-0 backdrop-blur-md z-10">
+                    <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                      {([
+                        { key: 'modelo', label: 'Modelo', align: 'left', width: '25%' },
+                        { key: 'codigoFipe', label: 'Código', align: 'left', width: '10%' },
+                        { key: 'anoModelo', label: 'Ano', align: 'left', width: '8%' },
+                        { key: 'mesFipe', label: 'Mês Ref.', align: 'left', minWidth: '130px' },
+                        { key: 'date', label: 'Data', align: 'left', width: '10%' },
+                        { key: 'value', label: 'Valor FIPE', align: 'right', width: '15%' },
+                        { key: 'diff', label: 'Variação', align: 'right', width: '15%' },
+                      ] as const).map((col) => {
+                        const isActive = historySortKey === col.key;
+                        return (
+                          <th
+                            key={col.key}
+                            style={{ width: (col as any).width, minWidth: (col as any).minWidth }}
+                            className={`px-4 py-4 cursor-pointer select-none hover:text-slate-600 transition ${col.align === 'right' ? 'text-right' : ''}`}
+                            onClick={() => {
+                              if (historySortKey === col.key) {
+                                setHistorySortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+                              } else {
+                                setHistorySortKey(col.key);
+                                setHistorySortDir('desc');
+                              }
+                            }}
+                          >
+                            <span className={`inline-flex items-center gap-1.5 ${col.align === 'right' ? 'justify-end w-full' : ''}`}>
+                              {col.label}
+                              {isActive ? (
+                                historySortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30" />
+                              )}
+                            </span>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {displayHistory.length > 0 ? (() => {
+                      let firstTs = Infinity;
+                      for (const r of displayHistory) firstTs = Math.min(firstTs, r.date.getTime());
+                      return displayHistory.map((row, idx) => {
+                        const isFirst = row.date.getTime() === firstTs;
+                        const isRateReference =
+                          (depreciation.initialDate && row.date.getTime() === depreciation.initialDate.getTime()) ||
+                          (depreciation.latestDate && row.date.getTime() === depreciation.latestDate.getTime());
 
-                          return (
-                            <tr key={`${row.date.toISOString()}-${idx}`} className={`border-t border-slate-100 ${isRateReference ? 'bg-amber-50/70 font-semibold' : ''}`}>
-                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.modelo || '-'}</td>
-                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.codigoFipe || '-'}</td>
-                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.anoModelo || '-'}</td>
-                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.mesFipe || '-'}</td>
-                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
-                                <div className="flex items-center gap-1">
-                                  <span>{row.date.toLocaleDateString('pt-BR')}</span>
-                                  {isRateReference && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">base taxa</span>}
+                        return (
+                          <tr key={`${row.date.toISOString()}-${idx}`} className={`hover:bg-slate-50 transition group ${isRateReference ? 'bg-amber-50/50' : ''}`}>
+                            <td className="px-4 py-3.5 text-slate-600 min-w-0 max-w-[200px] relative">
+                              {isRateReference && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />}
+                              <div className="truncate font-medium group-hover:text-slate-900 transition" title={row.modelo || ''}>
+                                {row.modelo || '-'}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px]">{row.codigoFipe || '-'}</td>
+                            <td className="px-4 py-3.5 text-slate-600">{row.anoModelo || '-'}</td>
+                            <td className="px-4 py-3.5 text-slate-600 italic text-[11px]">{row.mesFipe || '-'}</td>
+                            <td className="px-4 py-3.5 text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <span>{row.date.toLocaleDateString('pt-BR')}</span>
+                                {isRateReference && <span className="text-[9px] font-black uppercase bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded leading-none">Taxa</span>}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 font-bold text-slate-900 text-right">{formatBRL(row.value)}</td>
+                            <td className={`px-4 py-3.5 font-bold text-right text-[11px] ${row.diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {isFirst ? '-' : (
+                                <div className="flex flex-col items-end">
+                                  <span>{row.diff >= 0 ? '+' : ''}{formatBRL(row.diff)} ({formatPct(row.diffPct)})</span>
                                 </div>
-                              </td>
-                              <td className="px-2 py-2 font-medium text-slate-800 text-right whitespace-nowrap">{formatBRL(row.value)}</td>
-                              <td className={`px-2 py-2 font-medium text-right whitespace-nowrap ${row.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                {isFirst ? '-' : `${formatBRL(row.diff)} (${formatPct(row.diffPct)})`}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })() : (
-                        <tr>
-                          <td colSpan={7} className="px-2 py-4 text-center text-slate-500">
-                            Sem pontos FIPE para o codigo/ano informado.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })() : (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-12 text-center text-slate-400 italic">
+                          Aguardando dados de modelo/ano para exibir histórico...
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-        </div>
-
-            </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-sm font-semibold text-slate-800 mb-2">Verificacao de colunas (dim_frota)</div>
-            {detectedFrotaColumns ? (
-              <ul className="text-xs text-slate-600 space-y-1">
-                <li>id: {detectedFrotaColumns.id}</li>
-                <li>codigo FIPE: {detectedFrotaColumns.codigoFipe}</li>
-                <li>ano modelo: {detectedFrotaColumns.anoModelo}</li>
-                <li>categoria: {detectedFrotaColumns.categoria}</li>
-                <li>valor aquisicao: {detectedFrotaColumns.valorAquisicao}</li>
-                <li>data aquisicao: {detectedFrotaColumns.dataAquisicao}</li>
-              </ul>
-            ) : (
-              <div className="text-xs text-slate-500">Nao foi possivel detectar colunas nesta carga.</div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-sm font-semibold text-slate-800 mb-2">Verificacao de colunas (dim_precos_fipe)</div>
-            {detectedFipeColumns ? (
-              <ul className="text-xs text-slate-600 space-y-1">
-                <li>codigo FIPE: {detectedFipeColumns.codigoFipe}</li>
-                <li>ano modelo: {detectedFipeColumns.anoModelo}</li>
-                <li>modelo: {detectedFipeColumns.modelo}</li>
-                <li>data referencia: {detectedFipeColumns.data}</li>
-                <li>valor FIPE: {detectedFipeColumns.valor}</li>
-              </ul>
-            ) : (
-              <div className="text-xs text-slate-500">Nao foi possivel detectar colunas nesta carga.</div>
-            )}
           </div>
         </div>
+
+
       </div>
     </div>
   );

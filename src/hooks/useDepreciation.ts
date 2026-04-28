@@ -17,13 +17,15 @@ export interface FipeHistoryPoint {
 }
 
 export interface DepreciationInput {
-  acquisitionValue: number;   // preço público MENOS desconto
-  precoPP?: number;           // preço público 0km (sem desconto). Se ausente, usa acquisitionValue.
+  acquisitionValue: number;
+  precoPP: number;
   months: number;
   method: DepreciationMethod;
-  fipeHistory: FipeHistoryPoint[];
+  fipeHistory: FipeHistoryPoint[];   // histórico ANUAL filtrado (mesmo mês de referência)
+  projectionYears: number;           // FRAÇÃOANO(dataInicial, dataFinal) — prazo do contrato
+  startDate?: Date | null;           // dataInicial do contrato
+  endDate?: Date | null;             // dataFinal do contrato
   manualAnnualRate?: number | null;
-  rateYears?: number | null;
 }
 
 export interface DepreciationResult {
@@ -35,11 +37,11 @@ export interface DepreciationResult {
   latestFipe: number;
   initialDate: Date | null;
   latestDate: Date | null;
-  yearsBetween: number;
-  futureValue: number;            // alias de futureValueEstimated (compat)
-  precoPP: number;
-  futureValuePP: number;          // Venda PP = PP × (1 + taxa)^anos
-  futureValueEstimated: number;   // Venda Estimada = Aquisição × (1 + taxa)^anos
+  rateYears: number;
+  projectionYears: number;
+  futureValuePP: number;
+  futureValueEstimated: number;
+  futureValue: number;
   depreciationTotal: number;
   depreciationMonthly: number;
   depreciationAnnual: number;
@@ -50,185 +52,187 @@ export interface DepreciationResult {
   insight: string;
 }
 
-// FRAÇÃOANO equivalente (basis ACT/ACT — divide pelo nº de dias do ano de início)
-function yearFraction(start: Date, end: Date): number {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const days = (end.getTime() - start.getTime()) / msPerDay;
-  const y = start.getFullYear();
-  const isLeap = (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));
-  const daysInYear = isLeap ? 366 : 365;
-  return days / daysInYear;
-}
-
 const clampMoney = (v: number) => {
   if (!Number.isFinite(v)) return 0;
   return Math.max(0, v);
 };
 
+// Equivalente ao FRAÇÃOANO do Excel (base 30/360)
+function yearFraction(start: Date, end: Date): number {
+  const d1 = start.getDate();
+  const m1 = start.getMonth() + 1;
+  const y1 = start.getFullYear();
+
+  const d2 = end.getDate();
+  const m2 = end.getMonth() + 1;
+  const y2 = end.getFullYear();
+
+  const days = (y2 - y1) * 360 + (m2 - m1) * 30 + (d2 - d1);
+  return days / 360;
+}
+
+// Retorna o ponto FIPE mais próximo de uma data alvo
+function closestPoint(history: FipeHistoryPoint[], target: Date): FipeHistoryPoint {
+  return history.reduce((best, p) => {
+    const distBest = Math.abs(best.date.getTime() - target.getTime());
+    const distP = Math.abs(p.date.getTime() - target.getTime());
+    return distP < distBest ? p : best;
+  });
+}
+
 function buildInsight(rate: number, gapPercent: number): string {
   const absRate = Math.abs(rate);
-
   if (rate > 0.02) {
     return 'Valorizacao historica acima da media. Pode sustentar precificacao premium, com monitoramento de volatilidade.';
   }
-
   if (absRate <= 0.04 && gapPercent >= -0.08) {
-    return 'Este veiculo possui baixa depreciacao e e recomendado para locacao de prazo maior.';
+    return 'Este veiculo possui baixa depreciacao e e recomendado para contratos de prazo maior.';
   }
-
   if (absRate > 0.12 || gapPercent < -0.2) {
-    return 'Alta depreciacao projetada. Revisar prazo de venda, politica de renovacao e preco de locacao.';
+    return 'Alta depreciacao projetada. Revisar prazo contratual, politica de renovacao e composicao da mensalidade.';
   }
-
   return 'Depreciacao moderada. Balancear prazo contratual, km projetada e estrategia de renovacao.';
 }
 
+const EMPTY_RESULT = (
+  acquisitionValue: number,
+  precoPP: number,
+  reason: string,
+  annualRateSource: 'fipe' | 'manual',
+  initialFipe = 0,
+  latestFipe = 0,
+  initialDate: Date | null = null,
+  latestDate: Date | null = null,
+): DepreciationResult => ({
+  canCalculate: false,
+  reason,
+  annualRate: 0,
+  annualRateSource,
+  initialFipe,
+  latestFipe,
+  initialDate,
+  latestDate,
+  rateYears: 0,
+  projectionYears: 0,
+  futureValuePP: precoPP || acquisitionValue,
+  futureValueEstimated: acquisitionValue,
+  futureValue: acquisitionValue,
+  depreciationTotal: 0,
+  depreciationMonthly: 0,
+  depreciationAnnual: 0,
+  annualPercentage: 0,
+  gapValue: 0,
+  gapPercent: 0,
+  timeline: [],
+  insight: 'Sem base suficiente para gerar insight.',
+});
+
 export function calculate(input: DepreciationInput): DepreciationResult {
   const acquisitionValue = Number(input.acquisitionValue) || 0;
+  const precoPP = Number(input.precoPP) || acquisitionValue;
   const months = Math.max(1, Math.round(Number(input.months) || 0));
   const method = input.method;
-  const requestedRateYears = Number(input.rateYears);
-  const hasRateYears = Number.isFinite(requestedRateYears) && requestedRateYears > 0;
-
-  const history = [...(input.fipeHistory || [])]
-    .filter((p) => p?.date instanceof Date && Number.isFinite(p?.value))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-
+  const projectionYears = Number(input.projectionYears) > 0
+    ? Number(input.projectionYears)
+    : months / 12;
   const hasManualRate = Number.isFinite(input.manualAnnualRate as number);
 
-  const precoPPInput = Number(input.precoPP);
-  const precoPP = Number.isFinite(precoPPInput) && precoPPInput > 0 ? precoPPInput : acquisitionValue;
+  // Histórico ordenado do mais antigo ao mais recente
+  const history = [...(input.fipeHistory || [])]
+    .filter((p) => p?.date instanceof Date && Number.isFinite(p?.value) && p.value > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   if (!Number.isFinite(acquisitionValue) || acquisitionValue < 0) {
-    return {
-      canCalculate: false,
-      reason: 'Informe um valor de aquisicao valido para calcular a projecao.',
-      annualRate: 0,
-      annualRateSource: hasManualRate ? 'manual' : 'fipe',
-      initialFipe: 0,
-      latestFipe: 0,
-      initialDate: null,
-      latestDate: null,
-      yearsBetween: 0,
-      futureValue: 0,
-      precoPP,
-      futureValuePP: 0,
-      futureValueEstimated: 0,
-      depreciationTotal: 0,
-      depreciationMonthly: 0,
-      depreciationAnnual: 0,
-      annualPercentage: 0,
-      gapValue: 0,
-      gapPercent: 0,
-      timeline: [],
-      insight: 'Sem base suficiente para gerar insight.',
-    };
+    return EMPTY_RESULT(acquisitionValue, precoPP, 'Informe um valor de aquisicao valido.', hasManualRate ? 'manual' : 'fipe');
   }
 
   if (history.length <= 1 && !hasManualRate) {
     const reason = history.length === 0
       ? 'Sem historico FIPE suficiente. Informe taxa anual manual para continuar.'
       : 'Apenas um ponto FIPE encontrado. Informe taxa anual manual para continuar.';
-
-    return {
-      canCalculate: false,
-      reason,
-      annualRate: 0,
-      annualRateSource: 'fipe',
-      initialFipe: history[0]?.value || 0,
-      latestFipe: history[0]?.value || 0,
-      initialDate: history[0]?.date || null,
-      latestDate: history[0]?.date || null,
-      yearsBetween: 0,
-      futureValue: acquisitionValue,
-      precoPP,
-      futureValuePP: precoPP,
-      futureValueEstimated: acquisitionValue,
-      depreciationTotal: 0,
-      depreciationMonthly: 0,
-      depreciationAnnual: 0,
-      annualPercentage: 0,
-      gapValue: 0,
-      gapPercent: 0,
-      timeline: [],
-      insight: 'Sem base suficiente para gerar insight.',
-    };
+    return EMPTY_RESULT(
+      acquisitionValue, precoPP, reason, 'fipe',
+      history[0]?.value, history[0]?.value,
+      history[0]?.date, history[0]?.date,
+    );
   }
 
-  const initial = history[0];
-  const latest = history[history.length - 1];
+  // ─────────────────────────────────────────────────────────────────────────
+  // LÓGICA DA PLANILHA:
+  //   rateStart = ponto FIPE mais próximo da dataInicial do contrato
+  //   rateEnd   = ponto FIPE mais próximo da dataFinal do contrato
+  //   taxa      = (rateEnd.value / rateStart.value)^(1/projectionYears) - 1
+  //   rateYears = yearFraction(rateStart.date, rateEnd.date)  ← apenas para display
+  //
+  // Se não houver datas de contrato, usa history[0] e history[last]
+  // ─────────────────────────────────────────────────────────────────────────
+  const startDate = input.startDate instanceof Date ? input.startDate : null;
+  const endDate = input.endDate instanceof Date ? input.endDate : null;
 
+  const rateStart = startDate ? closestPoint(history, startDate) : history[0];
+  const rateEnd = endDate ? closestPoint(history, endDate) : history[history.length - 1];
+
+  // rateYears: janela real entre os pontos FIPE selecionados (para display no Resumo)
+  const rateYears = rateStart.date.getTime() !== rateEnd.date.getTime()
+    ? yearFraction(rateStart.date, rateEnd.date)
+    : projectionYears;
+
+  // Taxa anualizada usando projectionYears como denominador — idêntico à planilha
   let annualRateFromFipe = 0;
-  let historyYearsBetween = 0;
-
-  if (history.length > 1) {
-    historyYearsBetween = yearFraction(initial.date, latest.date);
+  if (projectionYears > 0 && rateStart.value > 0 && rateEnd.value > 0) {
+    annualRateFromFipe = Math.pow(rateEnd.value / rateStart.value, 1 / projectionYears) - 1;
   }
 
-  const yearsBetween = hasRateYears
-    ? requestedRateYears
-    : (historyYearsBetween > 0 ? historyYearsBetween : months / 12);
-
-  if (yearsBetween > 0 && initial.value > 0 && latest.value > 0) {
-    annualRateFromFipe = Math.pow(latest.value / initial.value, 1 / yearsBetween) - 1;
-  }
-
-  const annualRate = hasManualRate
-    ? Number(input.manualAnnualRate)
-    : annualRateFromFipe;
-
+  const annualRate: number = hasManualRate ? Number(input.manualAnnualRate) : annualRateFromFipe;
   const annualRateSource: 'fipe' | 'manual' = hasManualRate ? 'manual' : 'fipe';
 
-  // Tempo de projeção em anos: usa rateYears (FRAÇÃOANO) se disponível; caso contrário months/12
-  const time = hasRateYears ? requestedRateYears : months / 12;
-
-  const futureValueEstimatedRaw = method === 'linear'
-    ? acquisitionValue * (1 + annualRate * time)
-    : acquisitionValue * Math.pow(1 + annualRate, time);
-
+  // Planilha: Valor futuro = PP × (1 + taxa)^projectionYears
   const futureValuePPRaw = method === 'linear'
-    ? precoPP * (1 + annualRate * time)
-    : precoPP * Math.pow(1 + annualRate, time);
+    ? precoPP * (1 + annualRate * projectionYears)
+    : precoPP * Math.pow(1 + annualRate, projectionYears);
 
-  const futureValueEstimated = clampMoney(futureValueEstimatedRaw);
+  // Planilha: Venda Estimada = Aquisição × (1 + taxa)^projectionYears
+  const futureValueEstimatedRaw = method === 'linear'
+    ? acquisitionValue * (1 + annualRate * projectionYears)
+    : acquisitionValue * Math.pow(1 + annualRate, projectionYears);
+
   const futureValuePP = clampMoney(futureValuePPRaw);
-  const futureValue = futureValueEstimated; // alias para compatibilidade
+  const futureValueEstimated = clampMoney(futureValueEstimatedRaw);
+  const futureValue = futureValueEstimated;
 
   const depreciationTotal = acquisitionValue - futureValueEstimated;
   const depreciationMonthly = depreciationTotal / months;
-  const depreciationAnnual = depreciationTotal / time;
+  const depreciationAnnual = depreciationTotal / projectionYears;
   const annualPercentage = acquisitionValue > 0 ? depreciationAnnual / acquisitionValue : 0;
 
-  const latestFipe = latest?.value || 0;
-  const gapValue = futureValueEstimated - latestFipe;
+  const latestFipe = rateEnd?.value || 0;
+
+  // GAP = Venda PP projetada vs FIPE do ponto final
+  const gapValue = futureValuePP - latestFipe;
   const gapPercent = latestFipe > 0 ? gapValue / latestFipe : 0;
 
   const timeline: DepreciationPoint[] = [];
   for (let m = 0; m <= months; m++) {
-    const t = m / 12;
+    const t = (m / months) * projectionYears;
     const valueRaw = method === 'linear'
       ? acquisitionValue * (1 + annualRate * t)
       : acquisitionValue * Math.pow(1 + annualRate, t);
-
-    timeline.push({
-      month: m,
-      value: clampMoney(valueRaw),
-    });
+    timeline.push({ month: m, value: clampMoney(valueRaw) });
   }
 
   return {
     canCalculate: true,
     annualRate,
     annualRateSource,
-    initialFipe: initial?.value || 0,
+    initialFipe: rateStart?.value || 0,
     latestFipe,
-    initialDate: initial?.date || null,
-    latestDate: latest?.date || null,
-    yearsBetween,
-    futureValue,
-    precoPP,
+    initialDate: rateStart?.date || null,
+    latestDate: rateEnd?.date || null,
+    rateYears,
+    projectionYears,
     futureValuePP,
     futureValueEstimated,
+    futureValue,
     depreciationTotal,
     depreciationMonthly,
     depreciationAnnual,
@@ -247,7 +251,9 @@ export function useDepreciation(input: DepreciationInput): DepreciationResult {
     input.months,
     input.method,
     input.manualAnnualRate,
-    input.rateYears,
+    input.projectionYears,
+    input.startDate,
+    input.endDate,
     input.fipeHistory,
   ]);
 }
