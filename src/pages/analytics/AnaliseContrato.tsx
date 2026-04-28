@@ -3929,7 +3929,8 @@ export default function AnaliseContrato() {
   const tabKpis = useMemo(() => {
     let totalPassagens = 0;
     let totalPassagemPrevista = 0;
-    let veiculosCriticos = 0;
+    let veiculosCriticosDiff = 0;
+    let veiculosCriticosPct = 0;
     let somaRodagemMedia = 0;
     let totalOcorrenciasManutencao = 0;
     let totalOcorrenciasEfetivas = 0;
@@ -3967,7 +3968,8 @@ export default function AnaliseContrato() {
       totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
       totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
       totalOcorrenciasCanceladas += Number(row.qtdOcorrenciasCanceladas) || 0;
-      if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticos++;
+      if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold) veiculosCriticosDiff++;
+      if ((Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticosPct++;
 
       totalPrevisto += Number(row.custoManPrevisto) || 0;
       totalRealizado += Number(row.custoManRealizado) || 0;
@@ -4094,7 +4096,8 @@ export default function AnaliseContrato() {
       { label: 'Ocorrências Efetivas', value: fmtNum(totalOcorrenciasEfetivas), sub: `${fmtNum(totalOcorrenciasManutencao)} ocorrências totais`, icon: Route, color: 'text-emerald-600' },
       { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), sub: `${fmtNum(totalOcorrenciasCanceladas)} canceladas`, icon: AlertTriangle, color: pctCancelamentoOcorrencias > 0.35 ? 'text-rose-600' : 'text-amber-600' },
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
-      { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} ou % > ${fmtPct(passagemPctAlertThreshold)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
+      { label: 'Casos para Atenção (Dif.)', value: fmtNum(veiculosCriticosDiff), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} na frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
+      { label: 'Casos para Atenção (% Pass.)', value: fmtNum(veiculosCriticosPct), sub: `% Passagem > ${fmtPct(passagemPctAlertThreshold)}`, icon: AlertTriangle, color: 'text-amber-600' },
       { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Itens destacados em vermelho na aba atual', icon: ShieldAlert, color: 'text-red-600' },
       { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
     ];
@@ -5537,7 +5540,8 @@ export default function AnaliseContrato() {
     const getPrintKpisForTab = (tab: TabKey) => {
       let totalPassagens = 0;
       let totalPassagemPrevista = 0;
-      let veiculosCriticos = 0;
+      let veiculosCriticosDiff = 0;
+      let veiculosCriticosPct = 0;
       let somaRodagemMedia = 0;
       let totalOcorrenciasManutencao = 0;
       let totalOcorrenciasEfetivas = 0;
@@ -5568,7 +5572,8 @@ export default function AnaliseContrato() {
         totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
         totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
         totalOcorrenciasCanceladas += Number(row.qtdOcorrenciasCanceladas) || 0;
-        if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticos++;
+        if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold) veiculosCriticosDiff++;
+        if ((Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticosPct++;
 
         totalPrevisto += Number(row.custoManPrevisto) || 0;
         totalRealizado += Number(row.custoManRealizado) || 0;
@@ -5595,7 +5600,8 @@ export default function AnaliseContrato() {
       }
 
       const totalVeiculos = displayRows.length;
-      const pctCriticos = totalVeiculos > 0 ? veiculosCriticos / totalVeiculos : 0;
+      const pctCriticosDiff = totalVeiculos > 0 ? veiculosCriticosDiff / totalVeiculos : 0;
+      const pctCriticosPct = totalVeiculos > 0 ? veiculosCriticosPct / totalVeiculos : 0;
       const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
       const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
       const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
@@ -5675,7 +5681,8 @@ export default function AnaliseContrato() {
         { label: 'Ocorrências Efetivas', value: fmtNum(totalOcorrenciasEfetivas), cls: 'text-emerald-600' },
         { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), cls: pctCancelamentoOcorrencias > 0.35 ? 'text-red-600' : 'text-amber-600' },
         { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
-        { label: 'Críticos', value: `${fmtNum(veiculosCriticos)} (${fmtPct(pctCriticos)})`, cls: 'text-red-600' },
+        { label: 'Críticos (Dif.)', value: `${fmtNum(veiculosCriticosDiff)} (${fmtPct(pctCriticosDiff)})`, cls: 'text-red-600' },
+        { label: 'Críticos (% Pass.)', value: `${fmtNum(veiculosCriticosPct)} (${fmtPct(pctCriticosPct)})`, cls: 'text-amber-600' },
         { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), cls: 'text-blue-600' },
       ];
@@ -6945,6 +6952,8 @@ export default function AnaliseContrato() {
                           // calcular totais
                           const totals = filteredRows.reduce((acc, it) => {
                             const r = it.row as VehicleRow;
+                            // soma de campos numéricos
+                            acc.kmAtual += Number(r.kmAtual) || 0;
                             acc.passagemTotal += Number(r.passagemTotal) || 0;
                             acc.passagemIdeal += Number(r.passagemIdeal) || 0;
                             acc.diferencaPassagem += Number(r.diferencaPassagem) || 0;
@@ -6964,6 +6973,11 @@ export default function AnaliseContrato() {
                             acc.valorVeiculoFipe += Number(r.valorVeiculoFipe) || 0;
                             acc.pctReembolsadoSin += Number(r.pctReembolsadoSin) || 0;
                             acc.idadeEmMeses += Number(r.idadeEmMeses) || 0;
+                            // acumula rodagem media para depois calcular media aritmetica
+                            acc.rodagemMediaSum += Number(r.rodagemMedia) || 0;
+                            // somar franquia contratada e estimativa de km fim
+                            acc.franquiaBancoSum += Number(r.franquiaBanco) || 0;
+                            acc.kmEstimadoFim += Number(r.kmEstimadoFimContrato) || 0;
                             return acc;
                           }, {
                             passagemTotal: 0,
@@ -6985,6 +6999,10 @@ export default function AnaliseContrato() {
                             valorVeiculoFipe: 0,
                             pctReembolsadoSin: 0,
                             idadeEmMeses: 0,
+                            kmAtual: 0,
+                            rodagemMediaSum: 0,
+                            franquiaBancoSum: 0,
+                            kmEstimadoFim: 0,
                           });
 
                           filteredRows.forEach(item => {
@@ -7073,6 +7091,10 @@ export default function AnaliseContrato() {
                           const totalDifCustoKmMedio = manualCount > 0 ? totals.difCustoKm / manualCount : NaN;
                           const totalCustoKmLiqMedio = filteredRows.length > 0 ? totals.custoKmLiqMan / filteredRows.length : NaN;
                           const totalIdadeMedia = filteredRows.length > 0 ? totals.idadeEmMeses / filteredRows.length : NaN;
+                          const totalKmAtual = totals.kmAtual;
+                          const totalRodagemMedia = filteredRows.length > 0 ? totals.rodagemMediaSum / filteredRows.length : NaN;
+                          const totalFranquiaContratada = totals.franquiaBancoSum;
+                          const totalKmEstimadoFim = totals.kmEstimadoFim;
 
                           const totalPctReembMan = totals.custoManRealizado > 0 ? totals.totalReembMan / totals.custoManRealizado : 0;
                           const totalPctReembSin = totals.totalSinistro > 0 ? totals.totalReembSin / totals.totalSinistro : 0;
@@ -7084,17 +7106,17 @@ export default function AnaliseContrato() {
                           const totalGravidadeMediaSinistro = totals.qtdSinistros > 0 ? totals.totalSinistro / totals.qtdSinistros : NaN;
                           const totalIndiceSeveridadeDano = totals.valorVeiculoFipe > 0 ? totals.totalSinistro / totals.valorVeiculoFipe : NaN;
 
-                          // linha de totais
+                          // linha de totais (regras: textos em — exceto primeira coluna; médias para idade/rodagem; somas para KM, passagens, franquia, km estimado)
                           rowsElems.push(
                             <tr key="_totals" className="border-t border-slate-200 bg-slate-50 font-semibold">
                               <td className="px-3 py-2">Totais (Placas: {totalPlacasFiltradas.toLocaleString('pt-BR')})</td>
                               <td className="px-3 py-2">—</td>
                               <td className="px-3 py-2">—</td>
                               <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalIdadeMedia) ? fmtInt(totalIdadeMedia) : '—'}</td>
-                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">—</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{totals.passagemTotal.toLocaleString('pt-BR')}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{totals.passagemIdeal.toLocaleString('pt-BR')}</td>
-                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{totals.diferencaPassagem.toLocaleString('pt-BR')}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{totalKmAtual > 0 ? totalKmAtual.toLocaleString('pt-BR') : '—'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtNominal(totals.passagemTotal)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtNominal(totals.passagemIdeal)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{fmtNominal(totals.diferencaPassagem)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalCustoKmManMedio) ? fmtKM2(totalCustoKmManMedio) : '—'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalCustoKmPrevMedio) ? fmtKM2(totalCustoKmPrevMedio) : '—'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalDifCustoKmMedio) ? fmtKM2(totalDifCustoKmMedio) : '—'}</td>
@@ -7113,6 +7135,9 @@ export default function AnaliseContrato() {
                               <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalIndiceFrequenciaSinistro)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalGravidadeMediaSinistro) ? fmtBRLZero(totalGravidadeMediaSinistro) : 'N/D'}</td>
                               <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalIndiceSeveridadeDano) ? fmtPct(totalIndiceSeveridadeDano) : 'N/D'}</td>
+                              <td className="px-3 py-2">{isFinite(totalRodagemMedia) ? fmtNominal(totalRodagemMedia) : '—'}</td>
+                              <td className="px-3 py-2 text-right">{totalFranquiaContratada > 0 ? totalFranquiaContratada.toLocaleString('pt-BR') : '—'}</td>
+                              <td className="px-3 py-2 text-right">{totalKmEstimadoFim > 0 ? totalKmEstimadoFim.toLocaleString('pt-BR') : '—'}</td>
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2" />
