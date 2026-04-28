@@ -6,6 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
   Calculator,
   Car,
   ChartLine,
@@ -449,6 +452,8 @@ export default function FipeDepreciationPage() {
   const percentualVendaFipe = form.watch('percentualVendaFipe');
   const [vehicleSearch, setVehicleSearch] = useState(() => persistedPageState.vehicleSearch || '');
   const [manualModelFocused, setManualModelFocused] = useState(false);
+  const [historySortKey, setHistorySortKey] = useState<'modelo' | 'codigoFipe' | 'anoModelo' | 'mesFipe' | 'date' | 'value' | 'diff'>('date');
+  const [historySortDir, setHistorySortDir] = useState<'asc' | 'desc'>('desc');
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredModeloReferencia = useDeferredValue(modeloReferencia);
 
@@ -672,10 +677,16 @@ export default function FipeDepreciationPage() {
     const normalizedModelReference = normalizeText(deferredModeloReferencia);
     if (!normalizedModelReference) return [];
 
-    const yearGroups = groupedFipeSeries.filter((group) => {
-      const normalizedModel = normalizeText(group.model);
-      return normalizedModel.includes(normalizedModelReference) || normalizedModelReference.includes(normalizedModel);
-    });
+    // Preferir match EXATO (modelo escolhido na sugestão).
+    // Fallback: modelos que CONTÊM a query (não usar includes reverso, pois "VIRTUS"
+    // contido em "VIRTUS TSI" faria seleção do modelo errado).
+    const exactMatches = groupedFipeSeries.filter(
+      (group) => normalizeText(group.model) === normalizedModelReference
+    );
+    const yearGroups = exactMatches.length > 0
+      ? exactMatches
+      : groupedFipeSeries.filter((group) => normalizeText(group.model).includes(normalizedModelReference));
+
     return Array.from(new Map(yearGroups.map((group) => [group.anoModelo, group])).values()).sort((a, b) => a.anoModelo - b.anoModelo);
   }, [groupedFipeSeries, deferredModeloReferencia]);
 
@@ -691,10 +702,15 @@ export default function FipeDepreciationPage() {
     const manualMode = mode === 'manual';
 
     if (manualMode && normalizedModelReference) {
-      const matchingModelGroups = groupedFipeSeries.filter((group) => {
-        const normalizedModel = normalizeText(group.model);
-        return normalizedModel.includes(normalizedModelReference) || normalizedModelReference.includes(normalizedModel);
-      });
+      // Preferir EXATO; cair para "contém a query" só se não houver exato.
+      // Nunca usar includes reverso (modeloReferenceIncludes(model)) — isso pega
+      // variantes mais curtas (ex.: "VIRTUS" quando o usuário escolheu "VIRTUS TSI").
+      const exactGroups = groupedFipeSeries.filter(
+        (group) => normalizeText(group.model) === normalizedModelReference
+      );
+      const matchingModelGroups = exactGroups.length > 0
+        ? exactGroups
+        : groupedFipeSeries.filter((group) => normalizeText(group.model).includes(normalizedModelReference));
       if (matchingModelGroups.length > 0) {
         if (targetYear <= 0) {
           const mergedHistory = matchingModelGroups
@@ -861,24 +877,46 @@ export default function FipeDepreciationPage() {
   }, [depreciation.futureValue, saleFipeFactor]);
 
   const historyWithVariation = useMemo(() => {
-    return currentFipeHistory
-      .map((point, index, arr) => {
-        const prev = index > 0 ? arr[index - 1] : null;
-        const diff = prev ? point.value - prev.value : 0;
-        const diffPct = prev && prev.value > 0 ? diff / prev.value : 0;
-        return {
-          date: point.date,
-          value: point.value,
-          diff,
-          diffPct,
-          codigoFipe: point.codigoFipe,
-          anoModelo: point.anoModelo,
-          modelo: point.modelo,
-          mesFipe: point.mesFipe,
-        };
-      })
-      .reverse();
-  }, [currentFipeHistory]);
+    const withDiff = currentFipeHistory.map((point, index, arr) => {
+      const prev = index > 0 ? arr[index - 1] : null;
+      const diff = prev ? point.value - prev.value : 0;
+      const diffPct = prev && prev.value > 0 ? diff / prev.value : 0;
+      return {
+        date: point.date,
+        value: point.value,
+        diff,
+        diffPct,
+        codigoFipe: point.codigoFipe,
+        anoModelo: point.anoModelo,
+        modelo: point.modelo,
+        mesFipe: point.mesFipe,
+      };
+    });
+
+    const sorted = [...withDiff].sort((a, b) => {
+      const dir = historySortDir === 'asc' ? 1 : -1;
+      switch (historySortKey) {
+        case 'date':
+          return (a.date.getTime() - b.date.getTime()) * dir;
+        case 'value':
+          return ((a.value || 0) - (b.value || 0)) * dir;
+        case 'diff':
+          return ((a.diff || 0) - (b.diff || 0)) * dir;
+        case 'anoModelo':
+          return (((a.anoModelo as number) || 0) - ((b.anoModelo as number) || 0)) * dir;
+        case 'modelo':
+          return String(a.modelo || '').localeCompare(String(b.modelo || ''), 'pt-BR') * dir;
+        case 'codigoFipe':
+          return String(a.codigoFipe || '').localeCompare(String(b.codigoFipe || ''), 'pt-BR', { numeric: true }) * dir;
+        case 'mesFipe':
+          return String(a.mesFipe || '').localeCompare(String(b.mesFipe || ''), 'pt-BR') * dir;
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [currentFipeHistory, historySortKey, historySortDir]);
 
   const chartData = useMemo(() => {
     return depreciation.timeline.map((p) => ({
@@ -1440,38 +1478,71 @@ export default function FipeDepreciationPage() {
                   <table className="w-full min-w-[1100px] text-sm">
                     <thead className="bg-slate-50 sticky top-0">
                       <tr className="text-left text-slate-600 border-b border-slate-200">
-                        <th className="px-2 py-2 font-semibold">Modelo</th>
-                        <th className="px-2 py-2 font-semibold">Codigo FIPE</th>
-                        <th className="px-2 py-2 font-semibold">Ano</th>
-                        <th className="px-2 py-2 font-semibold">Mes FIPE</th>
-                        <th className="px-2 py-2 font-semibold">Data</th>
-                        <th className="px-2 py-2 font-semibold text-right">Valor</th>
-                        <th className="px-2 py-2 font-semibold text-right">Variacao</th>
+                        {([
+                          { key: 'modelo', label: 'Modelo', align: 'left' },
+                          { key: 'codigoFipe', label: 'Codigo FIPE', align: 'left' },
+                          { key: 'anoModelo', label: 'Ano', align: 'left' },
+                          { key: 'mesFipe', label: 'Mes FIPE', align: 'left' },
+                          { key: 'date', label: 'Data', align: 'left' },
+                          { key: 'value', label: 'Valor', align: 'right' },
+                          { key: 'diff', label: 'Variacao', align: 'right' },
+                        ] as const).map((col) => {
+                          const isActive = historySortKey === col.key;
+                          return (
+                            <th
+                              key={col.key}
+                              className={`px-2 py-2 font-semibold cursor-pointer select-none hover:bg-slate-100 ${col.align === 'right' ? 'text-right' : ''}`}
+                              onClick={() => {
+                                if (historySortKey === col.key) {
+                                  setHistorySortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+                                } else {
+                                  setHistorySortKey(col.key);
+                                  setHistorySortDir('desc');
+                                }
+                              }}
+                            >
+                              <span className={`inline-flex items-center gap-1 ${col.align === 'right' ? 'justify-end w-full' : ''}`}>
+                                {col.label}
+                                {isActive ? (
+                                  historySortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                                ) : (
+                                  <ArrowUpDown className="w-3 h-3 opacity-30" />
+                                )}
+                              </span>
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
-                      {historyWithVariation.length > 0 ? historyWithVariation.map((row, idx) => {
-                        const isRateReference = rateReferenceSet.has(row.date.getTime());
+                      {historyWithVariation.length > 0 ? (() => {
+                        // Identificar o primeiro ponto cronológico (sem variação anterior)
+                        let firstTs = Infinity;
+                        for (const r of historyWithVariation) firstTs = Math.min(firstTs, r.date.getTime());
+                        return historyWithVariation.map((row, idx) => {
+                          const isRateReference = rateReferenceSet.has(row.date.getTime());
+                          const isFirst = row.date.getTime() === firstTs;
 
-                        return (
-                          <tr key={`${row.date.toISOString()}-${idx}`} className={`border-t border-slate-100 ${isRateReference ? 'bg-amber-50/70 font-semibold' : ''}`}>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.modelo || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.codigoFipe || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.anoModelo || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.mesFipe || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
-                              <div className="flex items-center gap-1">
-                                <span>{row.date.toLocaleDateString('pt-BR')}</span>
-                                {isRateReference && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">base taxa</span>}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2 font-medium text-slate-800 text-right whitespace-nowrap">{formatBRL(row.value)}</td>
-                            <td className={`px-2 py-2 font-medium text-right whitespace-nowrap ${row.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {idx === historyWithVariation.length - 1 ? '-' : `${formatBRL(row.diff)} (${formatPct(row.diffPct)})`}
-                            </td>
-                          </tr>
-                        );
-                      }) : (
+                          return (
+                            <tr key={`${row.date.toISOString()}-${idx}`} className={`border-t border-slate-100 ${isRateReference ? 'bg-amber-50/70 font-semibold' : ''}`}>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.modelo || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.codigoFipe || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.anoModelo || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.mesFipe || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
+                                <div className="flex items-center gap-1">
+                                  <span>{row.date.toLocaleDateString('pt-BR')}</span>
+                                  {isRateReference && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">base taxa</span>}
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 font-medium text-slate-800 text-right whitespace-nowrap">{formatBRL(row.value)}</td>
+                              <td className={`px-2 py-2 font-medium text-right whitespace-nowrap ${row.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {isFirst ? '-' : `${formatBRL(row.diff)} (${formatPct(row.diffPct)})`}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })() : (
                         <tr>
                           <td colSpan={7} className="px-2 py-4 text-center text-slate-500">
                             Sem pontos FIPE para o codigo/ano informado.
