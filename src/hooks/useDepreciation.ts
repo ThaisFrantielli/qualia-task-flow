@@ -162,8 +162,7 @@ export function calculate(input: DepreciationInput): DepreciationResult {
   let historyYearsBetween = 0;
 
   if (history.length > 1) {
-    const ms = latest.date.getTime() - initial.date.getTime();
-    historyYearsBetween = ms / (1000 * 60 * 60 * 24 * 365);
+    historyYearsBetween = yearFraction(initial.date, latest.date);
   }
 
   const yearsBetween = hasRateYears
@@ -180,20 +179,28 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 
   const annualRateSource: 'fipe' | 'manual' = hasManualRate ? 'manual' : 'fipe';
 
-  const time = months / 12;
+  // Tempo de projeção em anos: usa rateYears (FRAÇÃOANO) se disponível; caso contrário months/12
+  const time = hasRateYears ? requestedRateYears : months / 12;
 
-  const futureValueRaw = method === 'linear'
+  const futureValueEstimatedRaw = method === 'linear'
     ? acquisitionValue * (1 + annualRate * time)
     : acquisitionValue * Math.pow(1 + annualRate, time);
 
-  const futureValue = clampMoney(futureValueRaw);
-  const depreciationTotal = acquisitionValue - futureValue;
+  const futureValuePPRaw = method === 'linear'
+    ? precoPP * (1 + annualRate * time)
+    : precoPP * Math.pow(1 + annualRate, time);
+
+  const futureValueEstimated = clampMoney(futureValueEstimatedRaw);
+  const futureValuePP = clampMoney(futureValuePPRaw);
+  const futureValue = futureValueEstimated; // alias para compatibilidade
+
+  const depreciationTotal = acquisitionValue - futureValueEstimated;
   const depreciationMonthly = depreciationTotal / months;
   const depreciationAnnual = depreciationTotal / time;
   const annualPercentage = acquisitionValue > 0 ? depreciationAnnual / acquisitionValue : 0;
 
   const latestFipe = latest?.value || 0;
-  const gapValue = futureValue - latestFipe;
+  const gapValue = futureValueEstimated - latestFipe;
   const gapPercent = latestFipe > 0 ? gapValue / latestFipe : 0;
 
   const timeline: DepreciationPoint[] = [];
@@ -219,6 +226,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
     latestDate: latest?.date || null,
     yearsBetween,
     futureValue,
+    precoPP,
+    futureValuePP,
+    futureValueEstimated,
     depreciationTotal,
     depreciationMonthly,
     depreciationAnnual,
