@@ -352,7 +352,7 @@ export default function FipeDepreciationPage() {
     metadata: fipeMetadata,
     loading: loadingFipe,
     error: errorFipe,
-  } = useBIData<AnyRecord[]>('dim_precos_fipe', { staleTime: 10 * 60 * 1000 });
+  } = useBIData<AnyRecord[]>('dim_precos_fipe', { staleTime: 10 * 60 * 1000, limit: 300000 });
 
   const vehicles = useMemo<FrotaVehicle[]>(() => {
     if (!Array.isArray(frotaRaw)) return [];
@@ -612,60 +612,61 @@ export default function FipeDepreciationPage() {
     ).sort((a, b) => a.localeCompare(b));
   }, [fipeRaw]);
 
+  // Pré-computa lista normalizada UMA VEZ (não a cada digitação)
   const allManualModelOptions = useMemo(() => {
     return Array.from(
       new Set([
         ...groupedFipeSeries.map((group) => group.model.trim()).filter(Boolean),
         ...rawFipeModelOptions,
       ]),
-    ).sort((a, b) => a.localeCompare(b));
+    );
   }, [groupedFipeSeries, rawFipeModelOptions]);
 
-  const manualModelOptions = useMemo(() => {
-    const normalizedModelReference = normalizeText(deferredModeloReferencia);
+  const normalizedModelIndex = useMemo(() => {
+    return allManualModelOptions.map((model) => ({
+      model,
+      normalized: normalizeText(model),
+    }));
+  }, [allManualModelOptions]);
 
-    return allManualModelOptions
-      .filter((model) => {
-        if (!normalizedModelReference) return true;
-        const normalizedModel = normalizeText(model);
-        return normalizedModel.includes(normalizedModelReference) || normalizedModelReference.includes(normalizedModel);
-      })
-      .sort((a, b) => {
-        const normalizedA = normalizeText(a);
-        const normalizedB = normalizeText(b);
-        const query = normalizeText(deferredModeloReferencia);
+  const yearCountByModel = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const group of groupedFipeSeries) {
+      const key = normalizeText(group.model);
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [groupedFipeSeries]);
 
-        if (!query) return a.localeCompare(b);
-
-        const score = (text: string) => {
-          if (text.startsWith(query)) return 0;
-          const index = text.indexOf(query);
-          if (index >= 0) return index + 1;
-          return 999;
-        };
-
-        const scoreDiff = score(normalizedA) - score(normalizedB);
-        if (scoreDiff !== 0) return scoreDiff;
-        return a.localeCompare(b);
-      });
-  }, [allManualModelOptions, deferredModeloReferencia]);
-
+  // Filtro rápido: para apenas quando atinge 8 resultados, sem sort caro
   const manualModelSuggestions = useMemo(() => {
-    const normalizedModelReference = normalizeText(deferredModeloReferencia);
+    const query = normalizeText(deferredModeloReferencia);
+    if (!query) return [];
 
-    const suggestionSource = manualModelOptions
-      .map((model) => ({
-        model,
-        normalizedModel: normalizeText(model),
-        yearCount: groupedFipeSeries.filter((group) => normalizeText(group.model) === normalizeText(model)).length,
-      }))
-      .filter((option) => {
-        if (!normalizedModelReference) return true;
-        return option.normalizedModel.includes(normalizedModelReference) || normalizedModelReference.includes(option.normalizedModel);
-      });
+    const startsWith: { model: string; normalizedModel: string; yearCount: number }[] = [];
+    const contains: { model: string; normalizedModel: string; yearCount: number }[] = [];
+    const MAX = 8;
 
-    return suggestionSource.slice(0, 8);
-  }, [manualModelOptions, groupedFipeSeries, deferredModeloReferencia]);
+    for (const item of normalizedModelIndex) {
+      if (startsWith.length >= MAX) break;
+      const idx = item.normalized.indexOf(query);
+      if (idx === 0) {
+        startsWith.push({
+          model: item.model,
+          normalizedModel: item.normalized,
+          yearCount: yearCountByModel.get(item.normalized) || 0,
+        });
+      } else if (idx > 0 && contains.length < MAX) {
+        contains.push({
+          model: item.model,
+          normalizedModel: item.normalized,
+          yearCount: yearCountByModel.get(item.normalized) || 0,
+        });
+      }
+    }
+
+    return [...startsWith, ...contains].slice(0, MAX);
+  }, [normalizedModelIndex, yearCountByModel, deferredModeloReferencia]);
 
   const manualYearOptions = useMemo(() => {
     const normalizedModelReference = normalizeText(deferredModeloReferencia);
