@@ -36,7 +36,10 @@ export interface DepreciationResult {
   initialDate: Date | null;
   latestDate: Date | null;
   yearsBetween: number;
-  futureValue: number;
+  futureValue: number;            // alias de futureValueEstimated (compat)
+  precoPP: number;
+  futureValuePP: number;          // Venda PP = PP × (1 + taxa)^anos
+  futureValueEstimated: number;   // Venda Estimada = Aquisição × (1 + taxa)^anos
   depreciationTotal: number;
   depreciationMonthly: number;
   depreciationAnnual: number;
@@ -45,6 +48,16 @@ export interface DepreciationResult {
   gapPercent: number;
   timeline: DepreciationPoint[];
   insight: string;
+}
+
+// FRAÇÃOANO equivalente (basis ACT/ACT — divide pelo nº de dias do ano de início)
+function yearFraction(start: Date, end: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const days = (end.getTime() - start.getTime()) / msPerDay;
+  const y = start.getFullYear();
+  const isLeap = (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));
+  const daysInYear = isLeap ? 366 : 365;
+  return days / daysInYear;
 }
 
 const clampMoney = (v: number) => {
