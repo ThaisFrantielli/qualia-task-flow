@@ -352,7 +352,7 @@ export default function FipeDepreciationPage() {
     metadata: fipeMetadata,
     loading: loadingFipe,
     error: errorFipe,
-  } = useBIData<AnyRecord[]>('dim_precos_fipe', { staleTime: 10 * 60 * 1000 });
+  } = useBIData<AnyRecord[]>('dim_precos_fipe', { staleTime: 10 * 60 * 1000, limit: 300000 });
 
   const vehicles = useMemo<FrotaVehicle[]>(() => {
     if (!Array.isArray(frotaRaw)) return [];
