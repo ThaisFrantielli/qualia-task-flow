@@ -452,6 +452,8 @@ export default function FipeDepreciationPage() {
   const percentualVendaFipe = form.watch('percentualVendaFipe');
   const [vehicleSearch, setVehicleSearch] = useState(() => persistedPageState.vehicleSearch || '');
   const [manualModelFocused, setManualModelFocused] = useState(false);
+  const [historySortKey, setHistorySortKey] = useState<'modelo' | 'codigoFipe' | 'anoModelo' | 'mesFipe' | 'date' | 'value' | 'diff'>('date');
+  const [historySortDir, setHistorySortDir] = useState<'asc' | 'desc'>('desc');
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredModeloReferencia = useDeferredValue(modeloReferencia);
 
