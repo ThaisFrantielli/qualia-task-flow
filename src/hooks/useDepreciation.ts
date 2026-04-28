@@ -243,6 +243,7 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 export function useDepreciation(input: DepreciationInput): DepreciationResult {
   return useMemo(() => calculate(input), [
     input.acquisitionValue,
+    input.precoPP,
     input.months,
     input.method,
     input.manualAnnualRate,
