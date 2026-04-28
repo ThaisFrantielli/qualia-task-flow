@@ -71,7 +71,7 @@ type SegmentEvolutionRow = {
 
 const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 const SEGMENTS = [
-  { key: 'PF' as SegmentKey, label: 'PF', color: '#14b8a6', muted: '#ccf0ec' },
+  { key: 'PF' as SegmentKey, label: 'PF', color: '#0f766e', muted: '#94a3b8' },
   { key: 'PJ' as SegmentKey, label: 'PJ', color: '#fb923c', muted: '#fcd9b6' },
   { key: 'PUBLICO' as SegmentKey, label: 'Público', color: '#2563eb', muted: '#bfdbfe' },
 ];
@@ -440,7 +440,6 @@ export default function FaturamentoDashboard() {
   const [selectedSegmentsMulti, setSelectedSegmentsMulti] = useState<SegmentKey[]>([]);
   const [chartTab, setChartTab] = useState<ChartTab>('MENSAL');
   const [detailTab, setDetailTab] = useState<'mensal' | 'segmento'>('mensal');
-  const [expandedClientes, setExpandedClientes] = useState<Set<string>>(new Set());
 
   const { results, loading, error } = useBIDataBatch(
     ['fat_faturamentos', 'dim_contratos_locacao', 'dim_frota'],
@@ -516,18 +515,16 @@ export default function FaturamentoDashboard() {
   }, [frota]);
 
   const vehicleByPlate = useMemo(() => {
-    const map = new Map<string, { id: string; valorCompra: number; modelo: string }>();
+    const map = new Map<string, { id: string; valorCompra: number }>();
     for (const v of frota) {
       const plate = normalizePlate(v.Placa);
       if (!plate) continue;
       const id = String(v.IdVeiculo ?? '').trim();
       const valorCompra = parseNumber(v.ValorCompra);
-      const modelo = String(v.Modelo ?? v.modelo ?? v.Model ?? v.model ?? '').trim();
       const current = map.get(plate);
       map.set(plate, {
         id: id || current?.id || '',
         valorCompra: valorCompra || current?.valorCompra || 0,
-        modelo: modelo || current?.modelo || '',
       });
     }
     return map;
@@ -1190,8 +1187,10 @@ export default function FaturamentoDashboard() {
 
     const getEndDate = (row: Row): Date | null => parseDateAny(
       row.DataEncerramento
-      ?? row.dataEncerramento
-      ?? row.data_encerramento
+      ?? row.DataFinal
+      ?? row.dataFinal
+      ?? row.DataTermino
+      ?? row.Fim
       ?? row.DataEncerramentoContrato
       ?? null
     );
@@ -1222,7 +1221,7 @@ export default function FaturamentoDashboard() {
     };
 
     const buildGroup = (rows: Row[]) => {
-      const byClient = new Map<string, { count: number; valor: number; modelos: Map<string, number> }>();
+      const byClient = new Map<string, number>();
       const byType: Record<SegmentKey, { count: number; value: number }> = {
         PF: { count: 0, value: 0 },
         PJ: { count: 0, value: 0 },
@@ -1234,27 +1233,11 @@ export default function FaturamentoDashboard() {
         const seg = resolveSegment(row);
         const value = getContractValue(row);
         const client = getClientName(row).trim() || 'Sem cliente';
-        const platePrincipal = normalizePlate(row.PlacaPrincipal ?? row.placaPrincipal ?? row.Placa ?? row.placa);
-        const plateReserva = normalizePlate(row.PlacaReserva ?? row.placaReserva);
-        const modelFromPlate = vehicleByPlate.get(platePrincipal || plateReserva)?.modelo ?? '';
-        const modelo = String(
-          row.Modelo
-          ?? row.modelo
-          ?? row.modelo_veiculo
-          ?? row.modelo_aquisicao
-          ?? row.Model
-          ?? row.model
-          ?? modelFromPlate
-          ?? ''
-        ).trim();
 
         byType[seg].count += 1;
         byType[seg].value += value;
         totalValor += value;
-        
-        const current = byClient.get(client) ?? { count: 0, valor: 0, modelos: new Map<string, number>() };
-        if (modelo) current.modelos.set(modelo, (current.modelos.get(modelo) ?? 0) + 1);
-        byClient.set(client, { count: current.count + 1, valor: current.valor + value, modelos: current.modelos });
+        byClient.set(client, (byClient.get(client) ?? 0) + 1);
       }
 
       const maxCount = Math.max(...SEGMENTS.map((s) => byType[s.key].count), 0);
@@ -1274,20 +1257,10 @@ export default function FaturamentoDashboard() {
 
       const topClientes = Array.from(byClient.entries())
         .sort((a, b) => {
-          if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+          if (b[1] !== a[1]) return b[1] - a[1];
           return a[0].localeCompare(b[0], 'pt-BR');
         })
-        .map(([cliente, data]) => ({ 
-          cliente, 
-          count: data.count, 
-          valorLocacao: data.valor,
-          modelos: Array.from(data.modelos.entries())
-            .sort((a, b) => {
-              if (b[1] !== a[1]) return b[1] - a[1];
-              return a[0].localeCompare(b[0], 'pt-BR');
-            })
-            .map(([modelo, quantidade]) => ({ modelo, quantidade }))
-        }));
+        .map(([cliente, count]) => ({ cliente, count }));
 
       return {
         totalContratos: rows.length,
@@ -1297,32 +1270,15 @@ export default function FaturamentoDashboard() {
       };
     };
 
-    const isCancelledContract = (row: Row): boolean => {
-      const status = String(
-        row.SituacaoContrato
-        ?? row.Situacao
-        ?? row.Status
-        ?? row.StatusContrato
-        ?? row.situacao
-        ?? row.situacao_contrato
-        ?? row.StatusContratoLocacao
-        ?? ''
-      ).toLowerCase();
-
-      if (status.includes('cancel')) return true;
-      if (row.CanceladoPor || row.CanceladoEm || row.DataCancelamento || row.Cancelamento) return true;
-      return false;
-    };
-
-    const iniciadosRows = contratos.filter((row) => !isCancelledContract(row) && inSelectedPeriod(getStartDate(row)));
-    const encerradosRows = contratos.filter((row) => !isCancelledContract(row) && inSelectedPeriod(getEndDate(row)));
+    const iniciadosRows = contratos.filter((row) => inSelectedPeriod(getStartDate(row)));
+    const encerradosRows = contratos.filter((row) => inSelectedPeriod(getEndDate(row)));
 
     return {
       periodLabel: comparisonWindow.periodMonthLabels.join(' • '),
       iniciados: buildGroup(iniciadosRows),
       encerrados: buildGroup(encerradosRows),
     };
-  }, [comparisonWindow.periodMonthIndexes, comparisonWindow.periodMonthLabels, contractsByClient, contractsByPlate, contratos, selectedYear, vehicleByPlate]);
+  }, [comparisonWindow.periodMonthIndexes, comparisonWindow.periodMonthLabels, contractsByClient, contractsByPlate, contratos, selectedYear]);
 
   const formatEvolutionValue = (value: number, kind: EvolutionMetricKind): string => {
     if (kind === 'number') return fmtNumber(value);
@@ -1634,7 +1590,7 @@ export default function FaturamentoDashboard() {
                   {visibleMonthly.map((row) => {
                     const monthValue = getMonthValueByLabel(row.mes);
                     return (
-                      <Cell key={`fat-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== monthValue ? '#ccf0ec' : '#14b8a6'} />
+                      <Cell key={`fat-${row.mes}`} fill={selectedMonth !== 0 && selectedMonth !== monthValue ? '#94a3b8' : '#0f766e'} />
                     );
                   })}
                   <LabelList dataKey="faturamentoEmitido" position="top" formatter={(v: number) => fmtCompactBRL(Number(v))} fontSize={12} />
@@ -1974,45 +1930,12 @@ export default function FaturamentoDashboard() {
                   {giroContratos.iniciados.topClientes.length === 0 && (
                     <p className="text-xs text-slate-500">Sem contratos iniciados para o período selecionado.</p>
                   )}
-                  {giroContratos.iniciados.topClientes.map((item, idx) => {
-                    const clientKey = `ini-${item.cliente}`;
-                    const isExpanded = expandedClientes.has(clientKey);
-                    return (
-                      <div key={`ini-client-${item.cliente}-${idx}`}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setExpandedClientes((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(clientKey)) next.delete(clientKey);
-                              else next.add(clientKey);
-                              return next;
-                            });
-                          }}
-                          className="w-full flex items-center justify-between text-sm hover:bg-slate-50 p-1.5 rounded transition-colors"
-                        >
-                          <span className="text-slate-700 truncate flex-1 text-left">{idx + 1}. {item.cliente}</span>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-slate-900 font-semibold text-right min-w-[50px]">{fmtNumber(item.count)}</span>
-                            <span className="text-slate-600 text-right min-w-[90px]">{fmtBRL(item.valorLocacao)}</span>
-                            <span className="text-slate-400 ml-1">{isExpanded ? '▼' : '▶'}</span>
-                          </div>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="pl-6 py-1.5 space-y-1">
-                            {item.modelos.length === 0 && <div className="text-xs text-slate-400">Sem modelo mapeado</div>}
-                            {item.modelos.map((modeloItem, midx) => (
-                              <div key={`ini-modelo-${modeloItem.modelo}-${midx}`} className="flex items-center justify-between text-xs text-slate-600 gap-2">
-                                <span className="truncate">• {modeloItem.modelo}</span>
-                                <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-700">{fmtNumber(modeloItem.quantidade)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {giroContratos.iniciados.topClientes.map((item, idx) => (
+                    <div key={`ini-client-${item.cliente}-${idx}`} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-700 truncate pr-3">{idx + 1}. {item.cliente}</span>
+                      <span className="text-slate-900 font-semibold">{fmtNumber(item.count)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -2049,45 +1972,12 @@ export default function FaturamentoDashboard() {
                   {giroContratos.encerrados.topClientes.length === 0 && (
                     <p className="text-xs text-slate-500">Sem contratos encerrados para o período selecionado.</p>
                   )}
-                  {giroContratos.encerrados.topClientes.map((item, idx) => {
-                    const clientKey = `end-${item.cliente}`;
-                    const isExpanded = expandedClientes.has(clientKey);
-                    return (
-                      <div key={`end-client-${item.cliente}-${idx}`}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setExpandedClientes((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(clientKey)) next.delete(clientKey);
-                              else next.add(clientKey);
-                              return next;
-                            });
-                          }}
-                          className="w-full flex items-center justify-between text-sm hover:bg-slate-50 p-1.5 rounded transition-colors"
-                        >
-                          <span className="text-slate-700 truncate flex-1 text-left">{idx + 1}. {item.cliente}</span>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-slate-900 font-semibold text-right min-w-[50px]">{fmtNumber(item.count)}</span>
-                            <span className="text-slate-600 text-right min-w-[90px]">{fmtBRL(item.valorLocacao)}</span>
-                            <span className="text-slate-400 ml-1">{isExpanded ? '▼' : '▶'}</span>
-                          </div>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="pl-6 py-1.5 space-y-1">
-                            {item.modelos.length === 0 && <div className="text-xs text-slate-400">Sem modelo mapeado</div>}
-                            {item.modelos.map((modeloItem, midx) => (
-                              <div key={`end-modelo-${modeloItem.modelo}-${midx}`} className="flex items-center justify-between text-xs text-slate-600 gap-2">
-                                <span className="truncate">• {modeloItem.modelo}</span>
-                                <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-700">{fmtNumber(modeloItem.quantidade)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {giroContratos.encerrados.topClientes.map((item, idx) => (
+                    <div key={`end-client-${item.cliente}-${idx}`} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-700 truncate pr-3">{idx + 1}. {item.cliente}</span>
+                      <span className="text-slate-900 font-semibold">{fmtNumber(item.count)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

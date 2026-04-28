@@ -10,6 +10,10 @@ export interface DepreciationPoint {
 export interface FipeHistoryPoint {
   date: Date;
   value: number;
+  codigoFipe?: string;
+  anoModelo?: number;
+  modelo?: string;
+  mesFipe?: string;
 }
 
 export interface DepreciationInput {
@@ -18,6 +22,7 @@ export interface DepreciationInput {
   method: DepreciationMethod;
   fipeHistory: FipeHistoryPoint[];
   manualAnnualRate?: number | null;
+  rateYears?: number | null;
 }
 
 export interface DepreciationResult {
@@ -68,6 +73,8 @@ export function calculate(input: DepreciationInput): DepreciationResult {
   const acquisitionValue = Number(input.acquisitionValue) || 0;
   const months = Math.max(1, Math.round(Number(input.months) || 0));
   const method = input.method;
+  const requestedRateYears = Number(input.rateYears);
+  const hasRateYears = Number.isFinite(requestedRateYears) && requestedRateYears > 0;
 
   const history = [...(input.fipeHistory || [])]
     .filter((p) => p?.date instanceof Date && Number.isFinite(p?.value))
@@ -75,7 +82,7 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 
   const hasManualRate = Number.isFinite(input.manualAnnualRate as number);
 
-  if (!acquisitionValue || acquisitionValue <= 0) {
+  if (!Number.isFinite(acquisitionValue) || acquisitionValue < 0) {
     return {
       canCalculate: false,
       reason: 'Informe um valor de aquisicao valido para calcular a projecao.',
@@ -129,15 +136,19 @@ export function calculate(input: DepreciationInput): DepreciationResult {
   const latest = history[history.length - 1];
 
   let annualRateFromFipe = 0;
-  let yearsBetween = 0;
+  let historyYearsBetween = 0;
 
   if (history.length > 1) {
     const ms = latest.date.getTime() - initial.date.getTime();
-    yearsBetween = ms / (1000 * 60 * 60 * 24 * 365);
+    historyYearsBetween = ms / (1000 * 60 * 60 * 24 * 365);
+  }
 
-    if (yearsBetween > 0 && initial.value > 0 && latest.value > 0) {
-      annualRateFromFipe = Math.pow(latest.value / initial.value, 1 / yearsBetween) - 1;
-    }
+  const yearsBetween = hasRateYears
+    ? requestedRateYears
+    : (historyYearsBetween > 0 ? historyYearsBetween : months / 12);
+
+  if (yearsBetween > 0 && initial.value > 0 && latest.value > 0) {
+    annualRateFromFipe = Math.pow(latest.value / initial.value, 1 / yearsBetween) - 1;
   }
 
   const annualRate = hasManualRate
@@ -202,6 +213,7 @@ export function useDepreciation(input: DepreciationInput): DepreciationResult {
     input.months,
     input.method,
     input.manualAnnualRate,
+    input.rateYears,
     input.fipeHistory,
   ]);
 }
