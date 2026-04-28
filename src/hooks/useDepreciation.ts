@@ -17,7 +17,8 @@ export interface FipeHistoryPoint {
 }
 
 export interface DepreciationInput {
-  acquisitionValue: number;
+  acquisitionValue: number;   // preço público MENOS desconto
+  precoPP?: number;           // preço público 0km (sem desconto). Se ausente, usa acquisitionValue.
   months: number;
   method: DepreciationMethod;
   fipeHistory: FipeHistoryPoint[];
