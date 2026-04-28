@@ -697,10 +697,15 @@ export default function FipeDepreciationPage() {
     const manualMode = mode === 'manual';
 
     if (manualMode && normalizedModelReference) {
-      const matchingModelGroups = groupedFipeSeries.filter((group) => {
-        const normalizedModel = normalizeText(group.model);
-        return normalizedModel.includes(normalizedModelReference) || normalizedModelReference.includes(normalizedModel);
-      });
+      // Preferir EXATO; cair para "contém a query" só se não houver exato.
+      // Nunca usar includes reverso (modeloReferenceIncludes(model)) — isso pega
+      // variantes mais curtas (ex.: "VIRTUS" quando o usuário escolheu "VIRTUS TSI").
+      const exactGroups = groupedFipeSeries.filter(
+        (group) => normalizeText(group.model) === normalizedModelReference
+      );
+      const matchingModelGroups = exactGroups.length > 0
+        ? exactGroups
+        : groupedFipeSeries.filter((group) => normalizeText(group.model).includes(normalizedModelReference));
       if (matchingModelGroups.length > 0) {
         if (targetYear <= 0) {
           const mergedHistory = matchingModelGroups
