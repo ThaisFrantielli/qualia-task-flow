@@ -17,7 +17,8 @@ export interface FipeHistoryPoint {
 }
 
 export interface DepreciationInput {
-  acquisitionValue: number;
+  acquisitionValue: number;   // preço público MENOS desconto
+  precoPP?: number;           // preço público 0km (sem desconto). Se ausente, usa acquisitionValue.
   months: number;
   method: DepreciationMethod;
   fipeHistory: FipeHistoryPoint[];
@@ -35,7 +36,10 @@ export interface DepreciationResult {
   initialDate: Date | null;
   latestDate: Date | null;
   yearsBetween: number;
-  futureValue: number;
+  futureValue: number;            // alias de futureValueEstimated (compat)
+  precoPP: number;
+  futureValuePP: number;          // Venda PP = PP × (1 + taxa)^anos
+  futureValueEstimated: number;   // Venda Estimada = Aquisição × (1 + taxa)^anos
   depreciationTotal: number;
   depreciationMonthly: number;
   depreciationAnnual: number;
@@ -44,6 +48,16 @@ export interface DepreciationResult {
   gapPercent: number;
   timeline: DepreciationPoint[];
   insight: string;
+}
+
+// FRAÇÃOANO equivalente (basis ACT/ACT — divide pelo nº de dias do ano de início)
+function yearFraction(start: Date, end: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const days = (end.getTime() - start.getTime()) / msPerDay;
+  const y = start.getFullYear();
+  const isLeap = (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));
+  const daysInYear = isLeap ? 366 : 365;
+  return days / daysInYear;
 }
 
 const clampMoney = (v: number) => {
@@ -82,6 +96,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 
   const hasManualRate = Number.isFinite(input.manualAnnualRate as number);
 
+  const precoPPInput = Number(input.precoPP);
+  const precoPP = Number.isFinite(precoPPInput) && precoPPInput > 0 ? precoPPInput : acquisitionValue;
+
   if (!Number.isFinite(acquisitionValue) || acquisitionValue < 0) {
     return {
       canCalculate: false,
@@ -94,6 +111,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
       latestDate: null,
       yearsBetween: 0,
       futureValue: 0,
+      precoPP,
+      futureValuePP: 0,
+      futureValueEstimated: 0,
       depreciationTotal: 0,
       depreciationMonthly: 0,
       depreciationAnnual: 0,
@@ -121,6 +141,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
       latestDate: history[0]?.date || null,
       yearsBetween: 0,
       futureValue: acquisitionValue,
+      precoPP,
+      futureValuePP: precoPP,
+      futureValueEstimated: acquisitionValue,
       depreciationTotal: 0,
       depreciationMonthly: 0,
       depreciationAnnual: 0,
@@ -139,8 +162,7 @@ export function calculate(input: DepreciationInput): DepreciationResult {
   let historyYearsBetween = 0;
 
   if (history.length > 1) {
-    const ms = latest.date.getTime() - initial.date.getTime();
-    historyYearsBetween = ms / (1000 * 60 * 60 * 24 * 365);
+    historyYearsBetween = yearFraction(initial.date, latest.date);
   }
 
   const yearsBetween = hasRateYears
@@ -157,20 +179,28 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 
   const annualRateSource: 'fipe' | 'manual' = hasManualRate ? 'manual' : 'fipe';
 
-  const time = months / 12;
+  // Tempo de projeção em anos: usa rateYears (FRAÇÃOANO) se disponível; caso contrário months/12
+  const time = hasRateYears ? requestedRateYears : months / 12;
 
-  const futureValueRaw = method === 'linear'
+  const futureValueEstimatedRaw = method === 'linear'
     ? acquisitionValue * (1 + annualRate * time)
     : acquisitionValue * Math.pow(1 + annualRate, time);
 
-  const futureValue = clampMoney(futureValueRaw);
-  const depreciationTotal = acquisitionValue - futureValue;
+  const futureValuePPRaw = method === 'linear'
+    ? precoPP * (1 + annualRate * time)
+    : precoPP * Math.pow(1 + annualRate, time);
+
+  const futureValueEstimated = clampMoney(futureValueEstimatedRaw);
+  const futureValuePP = clampMoney(futureValuePPRaw);
+  const futureValue = futureValueEstimated; // alias para compatibilidade
+
+  const depreciationTotal = acquisitionValue - futureValueEstimated;
   const depreciationMonthly = depreciationTotal / months;
   const depreciationAnnual = depreciationTotal / time;
   const annualPercentage = acquisitionValue > 0 ? depreciationAnnual / acquisitionValue : 0;
 
   const latestFipe = latest?.value || 0;
-  const gapValue = futureValue - latestFipe;
+  const gapValue = futureValueEstimated - latestFipe;
   const gapPercent = latestFipe > 0 ? gapValue / latestFipe : 0;
 
   const timeline: DepreciationPoint[] = [];
@@ -196,6 +226,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
     latestDate: latest?.date || null,
     yearsBetween,
     futureValue,
+    precoPP,
+    futureValuePP,
+    futureValueEstimated,
     depreciationTotal,
     depreciationMonthly,
     depreciationAnnual,
@@ -210,6 +243,7 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 export function useDepreciation(input: DepreciationInput): DepreciationResult {
   return useMemo(() => calculate(input), [
     input.acquisitionValue,
+    input.precoPP,
     input.months,
     input.method,
     input.manualAnnualRate,

@@ -41,6 +41,7 @@ const schema = z.object({
   modeloReferencia: z.string().optional(),
   anoModelo: z.coerce.number().int().min(0, 'Ano invalido.').max(2100, 'Ano invalido.'),
   valorAquisicao: z.coerce.number().min(0, 'Informe um valor de aquisicao valido.'),
+  precoPP: z.coerce.number().min(0, 'Informe o preco publico.').optional(),
   prazoMeses: z.coerce.number().int().min(1, 'Prazo minimo de 1 mes.').max(120, 'Prazo maximo de 120 meses.'),
   dataInicial: z.string().optional(),
   dataFinal: z.string().optional(),
@@ -76,6 +77,7 @@ function loadPersistedFipePageState(): PersistedFipePageState {
       modeloReferencia: typeof parsed.modeloReferencia === 'string' ? parsed.modeloReferencia : '',
       anoModelo: Number.isFinite(Number(parsed.anoModelo)) ? Number(parsed.anoModelo) : new Date().getFullYear(),
       valorAquisicao: Number.isFinite(Number(parsed.valorAquisicao)) ? Number(parsed.valorAquisicao) : 0,
+      precoPP: Number.isFinite(Number(parsed.precoPP)) ? Number(parsed.precoPP) : 0,
       prazoMeses: Number.isFinite(Number(parsed.prazoMeses)) ? Number(parsed.prazoMeses) : 30,
       dataInicial: typeof parsed.dataInicial === 'string' ? parsed.dataInicial : '',
       dataFinal: typeof parsed.dataFinal === 'string' ? parsed.dataFinal : '',
@@ -428,6 +430,7 @@ export default function FipeDepreciationPage() {
       modeloReferencia: persistedPageState.modeloReferencia || '',
       anoModelo: persistedPageState.anoModelo || new Date().getFullYear(),
       valorAquisicao: Number.isFinite(persistedPageState.valorAquisicao) ? Number(persistedPageState.valorAquisicao) : 0,
+      precoPP: Number.isFinite(Number(persistedPageState.precoPP)) ? Number(persistedPageState.precoPP) : 0,
       prazoMeses: Number.isFinite(persistedPageState.prazoMeses) ? Number(persistedPageState.prazoMeses) : 30,
       dataInicial: persistedPageState.dataInicial || '',
       dataFinal: persistedPageState.dataFinal || '',
@@ -444,6 +447,7 @@ export default function FipeDepreciationPage() {
   const modeloReferencia = form.watch('modeloReferencia');
   const anoModelo = form.watch('anoModelo');
   const valorAquisicao = form.watch('valorAquisicao');
+  const precoPP = form.watch('precoPP');
   const prazoMeses = form.watch('prazoMeses');
   const dataInicial = form.watch('dataInicial');
   const dataFinal = form.watch('dataFinal');
@@ -555,6 +559,7 @@ export default function FipeDepreciationPage() {
         modeloReferencia: modeloReferencia || '',
         anoModelo: Number.isFinite(anoModelo) ? anoModelo : new Date().getFullYear(),
         valorAquisicao: Number.isFinite(valorAquisicao) ? valorAquisicao : 0,
+        precoPP: Number.isFinite(Number(precoPP)) ? Number(precoPP) : 0,
         prazoMeses: Number.isFinite(prazoMeses) ? prazoMeses : 30,
         dataInicial: dataInicial || '',
         dataFinal: dataFinal || '',
@@ -566,7 +571,7 @@ export default function FipeDepreciationPage() {
     }, 250);
 
     return () => window.clearTimeout(handle);
-  }, [mode, selectedVehicleKeys, categoriaVeiculo, codigoFipe, modeloReferencia, anoModelo, valorAquisicao, prazoMeses, dataInicial, dataFinal, tipoCalculo, taxaManualAnual, percentualVendaFipe, vehicleSearch]);
+  }, [mode, selectedVehicleKeys, categoriaVeiculo, codigoFipe, modeloReferencia, anoModelo, valorAquisicao, precoPP, prazoMeses, dataInicial, dataFinal, tipoCalculo, taxaManualAnual, percentualVendaFipe, vehicleSearch]);
 
   const groupedFipeSeries = useMemo(() => {
     const modelHints = new Map<string, string>();
@@ -820,10 +825,22 @@ export default function FipeDepreciationPage() {
     return monthDiff(start, end);
   }, [prazoMeses, dataInicial, dataFinal]);
 
-  const effectiveYears = useMemo(() => effectiveMonths / 12, [effectiveMonths]);
-
   const dataInicialDate = useMemo(() => toDate(dataInicial), [dataInicial]);
   const dataFinalDate = useMemo(() => toDate(dataFinal), [dataFinal]);
+
+  // FRAÇÃOANO (basis ACT/ACT) entre data inicial e final; fallback months/12
+  const effectiveYears = useMemo(() => {
+    const start = dataInicialDate;
+    const end = dataFinalDate;
+    if (start && end && end > start) {
+      const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+      const y = start.getFullYear();
+      const isLeap = (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));
+      const daysInYear = isLeap ? 366 : 365;
+      return days / daysInYear;
+    }
+    return effectiveMonths / 12;
+  }, [dataInicialDate, dataFinalDate, effectiveMonths]);
 
   const currentFipeHistory = useMemo<FipeHistoryPoint[]>(() => {
     return resolvedFipeMatch.history;
@@ -858,7 +875,8 @@ export default function FipeDepreciationPage() {
   const acquisitionValue = Number(valorAquisicao) || 0;
 
   const depreciation = useDepreciation({
-    acquisitionValue,
+    acquisitionValue, // preço público − desconto (digitado pelo usuário)
+    precoPP: Number(precoPP) > 0 ? Number(precoPP) : acquisitionValue,
     months: effectiveMonths,
     method: selectedMethod,
     fipeHistory: rateFipeHistory,
@@ -873,8 +891,8 @@ export default function FipeDepreciationPage() {
   }, [percentualVendaFipe]);
 
   const estimatedFutureSale = useMemo(() => {
-    return depreciation.futureValue * saleFipeFactor;
-  }, [depreciation.futureValue, saleFipeFactor]);
+    return depreciation.futureValuePP * saleFipeFactor;
+  }, [depreciation.futureValuePP, saleFipeFactor]);
 
   const historyWithVariation = useMemo(() => {
     const withDiff = currentFipeHistory.map((point, index, arr) => {
@@ -1230,7 +1248,21 @@ export default function FipeDepreciationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-600 font-medium">Valor base da projecao (R$)</label>
+              <label className="text-xs text-slate-600 font-medium">Preco Publico 0km (R$)</label>
+              <input
+                type="number"
+                value={Number.isFinite(Number(precoPP)) && Number(precoPP) > 0 ? Number(precoPP) : ''}
+                onChange={(e) => form.setValue('precoPP', Number(e.target.value), { shouldValidate: true })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                placeholder="Ex: 127340.00"
+              />
+              <p className="text-[11px] text-slate-500">
+                Preco de tabela sem desconto. Valor de Aquisicao = PP - desconto de frota.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-slate-600 font-medium">Valor de aquisicao (PP - desconto) (R$)</label>
               <input
                 type="number"
                 value={Number.isFinite(valorAquisicao) ? valorAquisicao : ''}
@@ -1366,8 +1398,12 @@ export default function FipeDepreciationPage() {
                   <span className="font-semibold text-slate-800">{formatPct(depreciation.annualRate)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Valor futuro (base)</span>
-                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValue)}</span>
+                  <span className="text-slate-500">Venda apos {effectiveMonths} meses (PP)</span>
+                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValuePP)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-slate-500">Venda apos {effectiveMonths} meses (Estimada)</span>
+                  <span className="font-semibold text-slate-800">{formatBRL(depreciation.futureValueEstimated)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <span className="text-slate-500">Venda FIPE</span>
@@ -1380,9 +1416,10 @@ export default function FipeDepreciationPage() {
               </div>
 
               <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
-                <div>Taxa = (Valor final / Valor inicial) ^ (1 / anos) - 1</div>
-                <div>Valor futuro = Base * (1 + taxa) ^ tempo</div>
-                <div>Venda futura = Valor futuro * Venda FIPE</div>
+                <div>Taxa = (FIPE_final / FIPE_inicial) ^ (1 / FRACAOANO) - 1</div>
+                <div>Venda PP = PP x (1 + taxa) ^ FRACAOANO(ini, fim)</div>
+                <div>Venda Estimada = Aquisicao x (1 + taxa) ^ FRACAOANO(ini, fim)</div>
+                <div>Venda Futura = Venda PP x % Venda FIPE</div>
               </div>
 
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -1401,9 +1438,14 @@ export default function FipeDepreciationPage() {
                 <div className="text-xs text-slate-500">Preco publico base: {formatBRL(acquisitionValue)} | 0km-Fipe</div>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="text-xs uppercase text-slate-500 font-semibold">Valor projetado</div>
-                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValue)}</div>
-                <div className="text-xs text-slate-500">Tempo: {effectiveYears.toFixed(2).replace('.', ',')} anos</div>
+                <div className="text-xs uppercase text-slate-500 font-semibold">Venda PP ({effectiveMonths}m)</div>
+                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValuePP)}</div>
+                <div className="text-xs text-slate-500">Sobre preco publico 0km</div>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div className="text-xs uppercase text-slate-500 font-semibold">Venda Estimada ({effectiveMonths}m)</div>
+                <div className="text-2xl font-bold text-slate-800">{formatBRL(depreciation.futureValueEstimated)}</div>
+                <div className="text-xs text-slate-500">Sobre preco de aquisicao</div>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                 <div className="text-xs uppercase text-slate-500 font-semibold">Venda futura estimada</div>
