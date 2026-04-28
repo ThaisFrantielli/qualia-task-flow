@@ -96,6 +96,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
 
   const hasManualRate = Number.isFinite(input.manualAnnualRate as number);
 
+  const precoPPInput = Number(input.precoPP);
+  const precoPP = Number.isFinite(precoPPInput) && precoPPInput > 0 ? precoPPInput : acquisitionValue;
+
   if (!Number.isFinite(acquisitionValue) || acquisitionValue < 0) {
     return {
       canCalculate: false,
@@ -108,6 +111,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
       latestDate: null,
       yearsBetween: 0,
       futureValue: 0,
+      precoPP,
+      futureValuePP: 0,
+      futureValueEstimated: 0,
       depreciationTotal: 0,
       depreciationMonthly: 0,
       depreciationAnnual: 0,
@@ -135,6 +141,9 @@ export function calculate(input: DepreciationInput): DepreciationResult {
       latestDate: history[0]?.date || null,
       yearsBetween: 0,
       futureValue: acquisitionValue,
+      precoPP,
+      futureValuePP: precoPP,
+      futureValueEstimated: acquisitionValue,
       depreciationTotal: 0,
       depreciationMonthly: 0,
       depreciationAnnual: 0,
