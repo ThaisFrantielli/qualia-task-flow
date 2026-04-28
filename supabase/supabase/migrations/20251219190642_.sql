@@ -160,6 +160,10 @@ INSERT INTO public.analytics_pages (key, name, description, route, hub_category,
 ('executive', 'Executive Summary', 'Visão consolidada para diretoria', '/analytics/executive', 'executive', 'LayoutDashboard', 14),
 ('funding', 'Funding', 'Análise de Funding e Financiamento', '/analytics/funding', 'financeiro', 'Wallet', 15);
 
+-- Adiciona dashboard Depreciação FIPE
+INSERT INTO public.analytics_pages (key, name, description, route, hub_category, icon, display_order) VALUES
+('depreciacao_fipe', 'Depreciação FIPE', 'Depreciação de veículos segundo tabela FIPE', '/analytics/depreciacao-fipe', 'ativos', 'Percent', 16);
+
 -- Abas do Contratos
 INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELECT id, 'overview', 'Visão Geral', 1 FROM public.analytics_pages WHERE key = 'contratos';
 INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELECT id, 'performance', 'Performance', 2 FROM public.analytics_pages WHERE key = 'contratos';
@@ -170,4 +174,6 @@ INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELEC
 INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELECT id, 'receita', 'Receita', 1 FROM public.analytics_pages WHERE key = 'financeiro';
 INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELECT id, 'fluxo', 'Fluxo de Caixa', 2 FROM public.analytics_pages WHERE key = 'financeiro';
 INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELECT id, 'auditoria', 'Auditoria', 3 FROM public.analytics_pages WHERE key = 'financeiro';
+-- Abas do Depreciação FIPE
+INSERT INTO public.analytics_page_tabs (page_id, key, name, display_order) SELECT id, 'overview', 'Visão Geral', 1 FROM public.analytics_pages WHERE key = 'depreciacao_fipe';
 ;

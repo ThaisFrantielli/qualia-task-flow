@@ -11,6 +11,8 @@ import {
   Activity, Target, AlertTriangle, Gauge, Printer, Search,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAnalyticsPageAccess } from '@/hooks/useAnalyticsAccess';
 
 interface ContratoRow {
   [key: string]: unknown;
@@ -1595,6 +1597,9 @@ export default function AnaliseContrato() {
   const [alertRuleTerms, setAlertRuleTerms] = useState('');
   const [editingAlertRuleId, setEditingAlertRuleId] = useState<string | null>(null);
   const [alertRulesError, setAlertRulesError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { hasAccess: hasAnalyticsAccess } = useAnalyticsPageAccess('analise-contrato');
+  const canEditRules = !!hasAnalyticsAccess || !!user?.permissoes?.is_admin;
   const [filterCliente, setFilterCliente] = useState<string[]>(() => persistedUiStateRef.current?.filterCliente ?? []);
   const [filterCTO, setFilterCTO] = useState<string[]>(() => persistedUiStateRef.current?.filterCTO ?? []);
   const [filterPlaca, setFilterPlaca] = useState<string[]>(() => persistedUiStateRef.current?.filterPlaca ?? []);
@@ -6277,7 +6282,9 @@ export default function AnaliseContrato() {
                       <button
                         type="button"
                         onClick={upsertAlertRule}
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-medium hover:bg-slate-800 transition-colors"
+                        disabled={!canEditRules}
+                        title={!canEditRules ? 'Você não tem permissão para adicionar/editar regras' : undefined}
+                        className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${canEditRules ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'}`}
                       >
                         <Plus className="w-4 h-4" />
                         {editingAlertRuleId ? 'Atualizar' : 'Adicionar'}
@@ -6360,15 +6367,17 @@ export default function AnaliseContrato() {
                                   <td className="px-3 py-2 text-right">
                                     <button
                                       type="button"
-                                      onClick={() => startEditAlertRule(alertRuleScopeKey, rule)}
-                                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 mr-2"
+                                      onClick={() => canEditRules && startEditAlertRule(alertRuleScopeKey, rule)}
+                                      disabled={!canEditRules}
+                                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium mr-2 ${canEditRules ? 'border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-white text-slate-400 border border-slate-200 cursor-not-allowed'}`}
                                     >
                                       Editar
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => deleteAlertRule(alertRuleScopeKey, rule.id)}
-                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                                      onClick={() => canEditRules && deleteAlertRule(alertRuleScopeKey, rule.id)}
+                                      disabled={!canEditRules}
+                                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium ${canEditRules ? 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-white text-slate-400 border border-slate-200 cursor-not-allowed'}`}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />Retirar
                                     </button>
