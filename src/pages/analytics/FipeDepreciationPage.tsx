@@ -1478,38 +1478,71 @@ export default function FipeDepreciationPage() {
                   <table className="w-full min-w-[1100px] text-sm">
                     <thead className="bg-slate-50 sticky top-0">
                       <tr className="text-left text-slate-600 border-b border-slate-200">
-                        <th className="px-2 py-2 font-semibold">Modelo</th>
-                        <th className="px-2 py-2 font-semibold">Codigo FIPE</th>
-                        <th className="px-2 py-2 font-semibold">Ano</th>
-                        <th className="px-2 py-2 font-semibold">Mes FIPE</th>
-                        <th className="px-2 py-2 font-semibold">Data</th>
-                        <th className="px-2 py-2 font-semibold text-right">Valor</th>
-                        <th className="px-2 py-2 font-semibold text-right">Variacao</th>
+                        {([
+                          { key: 'modelo', label: 'Modelo', align: 'left' },
+                          { key: 'codigoFipe', label: 'Codigo FIPE', align: 'left' },
+                          { key: 'anoModelo', label: 'Ano', align: 'left' },
+                          { key: 'mesFipe', label: 'Mes FIPE', align: 'left' },
+                          { key: 'date', label: 'Data', align: 'left' },
+                          { key: 'value', label: 'Valor', align: 'right' },
+                          { key: 'diff', label: 'Variacao', align: 'right' },
+                        ] as const).map((col) => {
+                          const isActive = historySortKey === col.key;
+                          return (
+                            <th
+                              key={col.key}
+                              className={`px-2 py-2 font-semibold cursor-pointer select-none hover:bg-slate-100 ${col.align === 'right' ? 'text-right' : ''}`}
+                              onClick={() => {
+                                if (historySortKey === col.key) {
+                                  setHistorySortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+                                } else {
+                                  setHistorySortKey(col.key);
+                                  setHistorySortDir('desc');
+                                }
+                              }}
+                            >
+                              <span className={`inline-flex items-center gap-1 ${col.align === 'right' ? 'justify-end w-full' : ''}`}>
+                                {col.label}
+                                {isActive ? (
+                                  historySortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                                ) : (
+                                  <ArrowUpDown className="w-3 h-3 opacity-30" />
+                                )}
+                              </span>
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
-                      {historyWithVariation.length > 0 ? historyWithVariation.map((row, idx) => {
-                        const isRateReference = rateReferenceSet.has(row.date.getTime());
+                      {historyWithVariation.length > 0 ? (() => {
+                        // Identificar o primeiro ponto cronológico (sem variação anterior)
+                        let firstTs = Infinity;
+                        for (const r of historyWithVariation) firstTs = Math.min(firstTs, r.date.getTime());
+                        return historyWithVariation.map((row, idx) => {
+                          const isRateReference = rateReferenceSet.has(row.date.getTime());
+                          const isFirst = row.date.getTime() === firstTs;
 
-                        return (
-                          <tr key={`${row.date.toISOString()}-${idx}`} className={`border-t border-slate-100 ${isRateReference ? 'bg-amber-50/70 font-semibold' : ''}`}>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.modelo || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.codigoFipe || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.anoModelo || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.mesFipe || '-'}</td>
-                            <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
-                              <div className="flex items-center gap-1">
-                                <span>{row.date.toLocaleDateString('pt-BR')}</span>
-                                {isRateReference && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">base taxa</span>}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2 font-medium text-slate-800 text-right whitespace-nowrap">{formatBRL(row.value)}</td>
-                            <td className={`px-2 py-2 font-medium text-right whitespace-nowrap ${row.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {idx === historyWithVariation.length - 1 ? '-' : `${formatBRL(row.diff)} (${formatPct(row.diffPct)})`}
-                            </td>
-                          </tr>
-                        );
-                      }) : (
+                          return (
+                            <tr key={`${row.date.toISOString()}-${idx}`} className={`border-t border-slate-100 ${isRateReference ? 'bg-amber-50/70 font-semibold' : ''}`}>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.modelo || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.codigoFipe || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.anoModelo || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{row.mesFipe || '-'}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
+                                <div className="flex items-center gap-1">
+                                  <span>{row.date.toLocaleDateString('pt-BR')}</span>
+                                  {isRateReference && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">base taxa</span>}
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 font-medium text-slate-800 text-right whitespace-nowrap">{formatBRL(row.value)}</td>
+                              <td className={`px-2 py-2 font-medium text-right whitespace-nowrap ${row.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {isFirst ? '-' : `${formatBRL(row.diff)} (${formatPct(row.diffPct)})`}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })() : (
                         <tr>
                           <td colSpan={7} className="px-2 py-4 text-center text-slate-500">
                             Sem pontos FIPE para o codigo/ano informado.
