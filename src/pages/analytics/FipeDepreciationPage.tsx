@@ -877,24 +877,46 @@ export default function FipeDepreciationPage() {
   }, [depreciation.futureValue, saleFipeFactor]);
 
   const historyWithVariation = useMemo(() => {
-    return currentFipeHistory
-      .map((point, index, arr) => {
-        const prev = index > 0 ? arr[index - 1] : null;
-        const diff = prev ? point.value - prev.value : 0;
-        const diffPct = prev && prev.value > 0 ? diff / prev.value : 0;
-        return {
-          date: point.date,
-          value: point.value,
-          diff,
-          diffPct,
-          codigoFipe: point.codigoFipe,
-          anoModelo: point.anoModelo,
-          modelo: point.modelo,
-          mesFipe: point.mesFipe,
-        };
-      })
-      .reverse();
-  }, [currentFipeHistory]);
+    const withDiff = currentFipeHistory.map((point, index, arr) => {
+      const prev = index > 0 ? arr[index - 1] : null;
+      const diff = prev ? point.value - prev.value : 0;
+      const diffPct = prev && prev.value > 0 ? diff / prev.value : 0;
+      return {
+        date: point.date,
+        value: point.value,
+        diff,
+        diffPct,
+        codigoFipe: point.codigoFipe,
+        anoModelo: point.anoModelo,
+        modelo: point.modelo,
+        mesFipe: point.mesFipe,
+      };
+    });
+
+    const sorted = [...withDiff].sort((a, b) => {
+      const dir = historySortDir === 'asc' ? 1 : -1;
+      switch (historySortKey) {
+        case 'date':
+          return (a.date.getTime() - b.date.getTime()) * dir;
+        case 'value':
+          return ((a.value || 0) - (b.value || 0)) * dir;
+        case 'diff':
+          return ((a.diff || 0) - (b.diff || 0)) * dir;
+        case 'anoModelo':
+          return (((a.anoModelo as number) || 0) - ((b.anoModelo as number) || 0)) * dir;
+        case 'modelo':
+          return String(a.modelo || '').localeCompare(String(b.modelo || ''), 'pt-BR') * dir;
+        case 'codigoFipe':
+          return String(a.codigoFipe || '').localeCompare(String(b.codigoFipe || ''), 'pt-BR', { numeric: true }) * dir;
+        case 'mesFipe':
+          return String(a.mesFipe || '').localeCompare(String(b.mesFipe || ''), 'pt-BR') * dir;
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [currentFipeHistory, historySortKey, historySortDir]);
 
   const chartData = useMemo(() => {
     return depreciation.timeline.map((p) => ({
