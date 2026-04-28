@@ -672,10 +672,16 @@ export default function FipeDepreciationPage() {
     const normalizedModelReference = normalizeText(deferredModeloReferencia);
     if (!normalizedModelReference) return [];
 
-    const yearGroups = groupedFipeSeries.filter((group) => {
-      const normalizedModel = normalizeText(group.model);
-      return normalizedModel.includes(normalizedModelReference) || normalizedModelReference.includes(normalizedModel);
-    });
+    // Preferir match EXATO (modelo escolhido na sugestão).
+    // Fallback: modelos que CONTÊM a query (não usar includes reverso, pois "VIRTUS"
+    // contido em "VIRTUS TSI" faria seleção do modelo errado).
+    const exactMatches = groupedFipeSeries.filter(
+      (group) => normalizeText(group.model) === normalizedModelReference
+    );
+    const yearGroups = exactMatches.length > 0
+      ? exactMatches
+      : groupedFipeSeries.filter((group) => normalizeText(group.model).includes(normalizedModelReference));
+
     return Array.from(new Map(yearGroups.map((group) => [group.anoModelo, group])).values()).sort((a, b) => a.anoModelo - b.anoModelo);
   }, [groupedFipeSeries, deferredModeloReferencia]);
 
