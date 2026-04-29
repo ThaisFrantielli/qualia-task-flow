@@ -199,6 +199,7 @@ interface VehicleRow {
   custoLiqMan:number; pctReembolsadoMan:number; custoKmLiqMan:number;
   totalSinistro:number;
   totalReembSin:number;
+  qtdSinistrosSemReembolso:number;
   valorVeiculoFipe:number;
   qtdOsManutencao:number;
   qtdSinistros:number;
@@ -1119,6 +1120,59 @@ const clrPositiveThreshold = (v:number, maxGood:number) => {
 
 interface ColDef { key:string; label:string; fmt:(r:VehicleRow)=>string; cls?:(r:VehicleRow)=>string; align?:'left'|'right'; w?:number; sortGetter?:(r:VehicleRow)=>any; }
 
+const avgOf = (rows: VehicleRow[], getter: (row: VehicleRow) => number) => {
+  let sum = 0;
+  let count = 0;
+  for (const row of rows) {
+    const value = Number(getter(row));
+    if (isFinite(value)) {
+      sum += value;
+      count++;
+    }
+  }
+  return count > 0 ? sum / count : null;
+};
+
+const sumOf = (rows: VehicleRow[], getter: (row: VehicleRow) => number) => {
+  let sum = 0;
+  let found = false;
+  for (const row of rows) {
+    const value = Number(getter(row));
+    if (isFinite(value)) {
+      sum += value;
+      found = true;
+    }
+  }
+  return found ? sum : null;
+};
+
+const ratioOf = (rows: VehicleRow[], numerator: (row: VehicleRow) => number, denominator: (row: VehicleRow) => number, subtractOne = false) => {
+  let num = 0;
+  let den = 0;
+  for (const row of rows) {
+    const n = Number(numerator(row));
+    const d = Number(denominator(row));
+    if (isFinite(n)) num += n;
+    if (isFinite(d)) den += d;
+  }
+  if (!(den > 0)) return null;
+  const value = num / den;
+  return subtractOne ? value - 1 : value;
+};
+
+const formatFooterValue = (col: ColDef, total: number | null) => {
+  if (total == null) return '—';
+
+  const key = col.key.toLowerCase();
+  if (key === 'rodagemmedia') return fmtNum(Math.round(total));
+  if (key === 'kmprecificado') return fmtBRLZero(total);
+  if (key.includes('pct') || key.includes('sinistralidade') || key.includes('severidade')) return fmtPct(total);
+  if (key.includes('custokm')) return fmtKM2(total);
+  if (key.includes('ticketmedio') || key.includes('gravidademedia')) return fmtBRLZero(total);
+  if (key.includes('faturamento') || key.includes('custo') || key.includes('valor') || key.includes('reemb') || key.includes('man')) return fmtBRLZero(total);
+  return Number.isInteger(total) ? fmtNum(total) : fmtNum(Math.round(total * 100) / 100);
+};
+
 const getIdCols = (kmRedThreshold: number): ColDef[] => [
   { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:60, sortGetter: r=>r.cliente },
   { key:'contrato',    label:'CTO',          fmt:r=>r.contrato,    align:'left',  w:95, sortGetter: r=>r.contrato },
@@ -1954,23 +2008,33 @@ export default function AnaliseContrato() {
   const bancoRegraLookup = useMemo(() => {
     const map = new Map<string, number>();
     for (const regra of (rawRules as RegrasContratoRow[] | null ?? [])) {
-      const cto = String(regra?.Contrato || '').trim();
-      const nomeRegra = String(regra?.NomeRegra || '').trim();
+      const r: any = regra as any;
+      const cto = String(r?.Contrato || '').trim();
+      const nomeRegra = String(r?.NomeRegra || r?.TipoPerfilContrato || r?.TipoPerfil || r?.NomePerfil || '').trim();
       if (!cto || !nomeRegra) continue;
-      const grupo = String(regra?.Grupo || regra?.GrupoVeiculo || regra?.Categoria || regra?.CategoriaVeiculo || '').trim();
-      const valor = parseNum(regra?.ConteudoRegra);
-      if (grupo) map.set(makeBancoRuleKey(cto, grupo, nomeRegra), valor);
+      const grupo = String(r?.Grupo || r?.GrupoVeiculo || r?.Categoria || r?.CategoriaVeiculo || '').trim();
+      const valor = parseNum(r?.ConteudoRegra ?? r?.Valor ?? r?.Conteudo);
+      // também grava variação sem prefixo tipo "A - " para cobrir cargas diferentes
+      const nomeNormalizado = nomeRegra.replace(/^[A-Z]\s*-\s*/i, '').trim();
+      if (grupo) {
+        map.set(makeBancoRuleKey(cto, grupo, nomeRegra), valor);
+        if (nomeNormalizado !== nomeRegra) map.set(makeBancoRuleKey(cto, grupo, nomeNormalizado), valor);
+      }
       map.set(makeBancoRuleKeyGeneric(cto, nomeRegra), valor);
+      if (nomeNormalizado !== nomeRegra) map.set(makeBancoRuleKeyGeneric(cto, nomeNormalizado), valor);
     }
     return map;
   }, [rawRules]);
 
   const lookupFranquiaBanco = (cto: string, grupo: string) => {
-    const regra = 'A - Franquia Km/mês';
-    const specific = bancoRegraLookup.get(makeBancoRuleKey(cto, grupo, regra));
-    if (specific != null) return specific;
-    const generic = bancoRegraLookup.get(makeBancoRuleKeyGeneric(cto, regra));
-    return generic != null ? generic : 3000;
+    const regras = ['A - Franquia Km/mês', 'Franquia Km/mês'];
+    for (const regra of regras) {
+      const specific = bancoRegraLookup.get(makeBancoRuleKey(cto, grupo, regra));
+      if (specific != null) return specific;
+      const generic = bancoRegraLookup.get(makeBancoRuleKeyGeneric(cto, regra));
+      if (generic != null) return generic;
+    }
+    return 3000;
   };
 
   const lookupCustoKmManual = (cto: string, grupo: string) => {
@@ -2353,7 +2417,7 @@ export default function AnaliseContrato() {
       }
     }
 
-    type SA = Record<number,{cost:number;reemb:number;qty:number}>;
+    type SA = Record<number,{cost:number;reemb:number;qty:number;qtySemReembolso:number}>;
     const sinIdx = new Map<string,SA>();
     for (const s of arrS) {
       const rawPlaca = s.Placa; if(!rawPlaca) continue;
@@ -2366,19 +2430,21 @@ export default function AnaliseContrato() {
         if(!sinIdx.has(key)) sinIdx.set(key,{});
       }
       const sm=sinIdx.get(placa)!;
-      if(!sm[yr]) sm[yr]={cost:0,reemb:0,qty:0};
+      if(!sm[yr]) sm[yr]={cost:0,reemb:0,qty:0,qtySemReembolso:0};
       const sAny = s as any;
       const sinCost = parseSinistroCost(sAny);
       const sinReemb = parseSinistroReembolso(sAny);
       sm[yr].cost += sinCost;
       sm[yr].reemb += sinReemb;
       sm[yr].qty += 1;
+      if (sinCost > 0 && !(sinReemb > 0)) sm[yr].qtySemReembolso += 1;
       if (placaKey && placaKey !== placa) {
         const smKey = sinIdx.get(placaKey)!;
-        if(!smKey[yr]) smKey[yr]={cost:0,reemb:0,qty:0};
+        if(!smKey[yr]) smKey[yr]={cost:0,reemb:0,qty:0,qtySemReembolso:0};
         smKey[yr].cost += sinCost;
         smKey[yr].reemb += sinReemb;
         smKey[yr].qty += 1;
+        if (sinCost > 0 && !(sinReemb > 0)) smKey[yr].qtySemReembolso += 1;
       }
     }
 
@@ -2649,11 +2715,12 @@ export default function AnaliseContrato() {
       const custoKmLiqMan = kmAtual > 0 ? custoLiqMan / kmAtual : 0;
 
       const sm = sinIdx.get(realPlaca) || sinIdx.get(realPlacaKey) || {};
-      let totalSinistro = 0, totalReembSin = 0, totalQtdSinistros = 0;
+      let totalSinistro = 0, totalReembSin = 0, totalQtdSinistros = 0, totalQtdSinistrosSemReembolso = 0;
       for (const y in sm) {
         totalSinistro += sm[y].cost;
         totalReembSin += sm[y].reemb;
         totalQtdSinistros += sm[y].qty || 0;
+        totalQtdSinistrosSemReembolso += sm[y].qtySemReembolso || 0;
       }
       const custoLiqSin = totalSinistro - totalReembSin;
 
@@ -2779,7 +2846,7 @@ export default function AnaliseContrato() {
         custoManPrevisto, custoManRealizado, difManPrevReal, pctDifManPrevReal, custoManLiquido, difCustoManLiq, pctDifCustoManLiq,
         totalManutencao, ticketMedio, custoKmMan,
         totalReembMan, custoLiqMan, pctReembolsadoMan, custoKmLiqMan,
-        totalSinistro, totalReembSin, valorVeiculoFipe, qtdOsManutencao: cntMan, qtdSinistros: totalQtdSinistros, custoLiqSin, pctReembolsadoSin,
+        totalSinistro, totalReembSin, qtdSinistrosSemReembolso: totalQtdSinistrosSemReembolso, valorVeiculoFipe, qtdOsManutencao: cntMan, qtdSinistros: totalQtdSinistros, custoLiqSin, pctReembolsadoSin,
         totalManSin, pctReembolsadoManSin,
         faturamentoTotal: faturamentoTotalExibido,
         faturamentoPrevisto: faturamentoPrevistoExibido, ultimoValorLocacao: ultimoPrecoExibido, diferencaFaturamento: diferencaFaturamentoExibida, projecaoFaturamento: projecaoFaturamentoExibida,
@@ -3911,7 +3978,7 @@ export default function AnaliseContrato() {
     }
 
     if (tab === 'sinistro') {
-      return displayRows.filter(row => (Number(row.custoLiqSin) || 0) > 0).length;
+      return displayRows.filter(row => (Number(row.qtdSinistrosSemReembolso) || 0) > 0).length;
     }
 
     if (tab === 'mansin') {
@@ -3936,7 +4003,12 @@ export default function AnaliseContrato() {
     let totalPassagemPrevista = 0;
     let veiculosCriticosDiff = 0;
     let veiculosCriticosPct = 0;
+    let veiculosCriticosTotal = 0;
     let somaRodagemMedia = 0;
+    let somaTempoLocacao = 0;
+    let somaKmEstimadoFimContrato = 0;
+    let veiculosComFranquia = 0;
+    let veiculosAcimaFranquia = 0;
     let totalOcorrenciasManutencao = 0;
     let totalOcorrenciasEfetivas = 0;
     let totalOcorrenciasCanceladas = 0;
@@ -3951,6 +4023,7 @@ export default function AnaliseContrato() {
 
     let totalSinistro = 0;
     let totalReembSin = 0;
+    let totalSinistrosSemReembolso = 0;
     let totalCustoLiqSin = 0;
     let totalSinistrosQtd = 0;
     let totalAtivoFipeSinistro = 0;
@@ -3970,11 +4043,18 @@ export default function AnaliseContrato() {
       totalPassagens += Number(row.passagemTotal) || 0;
       totalPassagemPrevista += Number(row.passagemIdeal) || 0;
       somaRodagemMedia += Number(row.rodagemMedia) || 0;
+      somaTempoLocacao += Number(row.idadeEmMeses) || 0;
+      somaKmEstimadoFimContrato += Number(row.kmEstimadoFimContrato) || 0;
+      if ((Number(row.franquiaBanco) || 0) > 0) {
+        veiculosComFranquia++;
+        if ((Number(row.rodagemMedia) || 0) > (Number(row.franquiaBanco) || 0)) veiculosAcimaFranquia++;
+      }
       totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
       totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
       totalOcorrenciasCanceladas += Number(row.qtdOcorrenciasCanceladas) || 0;
       if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold) veiculosCriticosDiff++;
       if ((Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticosPct++;
+      if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticosTotal++;
 
       totalPrevisto += Number(row.custoManPrevisto) || 0;
       totalRealizado += Number(row.custoManRealizado) || 0;
@@ -3986,6 +4066,7 @@ export default function AnaliseContrato() {
 
       totalSinistro += Number(row.totalSinistro) || 0;
       totalReembSin += Number(row.totalReembSin) || 0;
+      totalSinistrosSemReembolso += Number(row.qtdSinistrosSemReembolso) || 0;
       totalCustoLiqSin += Number(row.custoLiqSin) || 0;
       totalSinistrosQtd += Number(row.qtdSinistros) || 0;
       totalAtivoFipeSinistro += Number(row.valorVeiculoFipe) || 0;
@@ -4005,13 +4086,19 @@ export default function AnaliseContrato() {
     const totalVeiculos = displayRows.length;
     const mediaPassagens = totalVeiculos > 0 ? totalPassagens / totalVeiculos : 0;
     const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
+    const tempoMedioLocacao = totalVeiculos > 0 ? somaTempoLocacao / totalVeiculos : 0;
+    const projecaoMediaKmFimContrato = totalVeiculos > 0 ? somaKmEstimadoFimContrato / totalVeiculos : 0;
+    const pctVeiculosAcimaFranquia = veiculosComFranquia > 0 ? veiculosAcimaFranquia / veiculosComFranquia : 0;
     const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
 
     const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
     const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
     const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
+    const taxaOsSemReembolso = totalSinistrosQtd > 0 ? totalSinistrosSemReembolso / totalSinistrosQtd : 0;
     const custoLiqTotalManSin = totalManSin - totalReembManSin;
     const ticketMedioTotal = totalEventosManSin > 0 ? totalManSin / totalEventosManSin : 0;
+    const custoPorMesLocacao = totalVeiculos > 0 ? totalManutencao / Math.max(1, somaTempoLocacao) : 0;
+    const osPorVeiculo = totalVeiculos > 0 ? totalOcorrenciasEfetivas / totalVeiculos : 0;
     const sinistralidadeOperacional = faturamentoTotal > 0 ? totalSinistro / faturamentoTotal : 0;
     const sinistralidadeReembolso = totalReembSin > 0 ? totalSinistro / totalReembSin : NaN;
     const indiceFrequenciaSinistro = totalVeiculos > 0 ? totalSinistrosQtd / totalVeiculos : 0;
@@ -4026,6 +4113,7 @@ export default function AnaliseContrato() {
     const ticketMedioOsItens = totalOsComItens > 0 ? totalItensOsValor / totalOsComItens : 0;
     const custoMedioItemOs = totalItensOsQtd > 0 ? totalItensOsValor / totalItensOsQtd : 0;
     const impactoItensOs = faturamentoTotal > 0 ? totalItensOsValor / faturamentoTotal : 0;
+    const coberturaCustos = (totalManutencao + totalSinistro) > 0 ? faturamentoTotal / (totalManutencao + totalSinistro) : 0;
 
     if (activeTab === 'previsto') {
       return [
@@ -4042,6 +4130,8 @@ export default function AnaliseContrato() {
         { label: 'Custo Bruto', value: fmtBRL(totalManutencao), sub: 'Soma de manutenção', icon: Wrench, color: 'text-rose-600' },
         { label: 'Total Reembolsado', value: fmtBRL(totalReembMan), sub: 'Recuperado em manutenção', icon: ShieldAlert, color: 'text-emerald-600' },
         { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), sub: 'Bruto - Reembolsos', icon: DollarSign, color: 'text-indigo-600' },
+        { label: 'Custo/Mês Locação', value: fmtBRLZero(custoPorMesLocacao), sub: 'Custo bruto / meses de locação', icon: Gauge, color: 'text-sky-600' },
+        { label: 'OS por Veículo', value: fmtNum(osPorVeiculo), sub: 'Ocorrências efetivas / frota filtrada', icon: Route, color: 'text-teal-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), sub: 'Reembolso / Custo Bruto', icon: Activity, color: 'text-blue-600' },
         { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
@@ -4067,6 +4157,7 @@ export default function AnaliseContrato() {
         { label: 'Reembolso Sinistro', value: fmtBRLZero(totalReembSin), sub: 'Seguradora + terceiro', icon: DollarSign, color: 'text-emerald-600' },
         { label: 'Custo Líquido Sinistro', value: fmtBRLZero(totalCustoLiqSin), sub: 'Sinistro - Reembolso', icon: BarChart3, color: 'text-indigo-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), sub: 'Reembolso / Sinistro', icon: Activity, color: 'text-blue-600' },
+        { label: 'OS sem Reembolso', value: fmtNum(totalSinistrosSemReembolso), sub: `Taxa ${fmtPct(taxaOsSemReembolso)} sobre as OS com custo`, icon: AlertTriangle, color: totalSinistrosSemReembolso > 0 ? 'text-amber-600' : 'text-emerald-600' },
         { label: 'Sinistralidade Op.', value: fmtPct(sinistralidadeOperacional), sub: '(Custos sinistro / faturamento bruto)', icon: AlertTriangle, color: sinistralidadeOperacional > 0.7 ? 'text-rose-600' : sinistralidadeOperacional > 0.65 ? 'text-amber-600' : 'text-emerald-600' },
         { label: 'Índice de Frequência', value: fmtPct(indiceFrequenciaSinistro), sub: 'Nº sinistros / nº veículos', icon: Gauge, color: 'text-sky-600' },
         { label: 'Gravidade Média', value: fmtBRLZero(gravidadeMediaSinistro), sub: 'Custo total de sinistros / nº sinistros', icon: BarChart3, color: 'text-indigo-600' },
@@ -4089,6 +4180,7 @@ export default function AnaliseContrato() {
     if (activeTab === 'faturamento') {
       return [
         { label: 'Faturamento Total', value: fmtBRL(faturamentoTotal), sub: 'Receita consolidada', icon: DollarSign, color: 'text-emerald-600' },
+        { label: 'Cobertura de Custos', value: fmtPct(coberturaCustos), sub: 'Faturamento / custo total bruto', icon: Target, color: coberturaCustos >= 1 ? 'text-emerald-600' : 'text-rose-600' },
         { label: 'Margem Manutenção', value: fmtPct(margemManutencao), sub: '1 - (Custo líq. man / fat.)', icon: Target, color: margemManutencao < 0 ? 'text-rose-600' : 'text-indigo-600' },
         { label: 'Impacto Manutenção', value: fmtPct(impactoManutencao), sub: '% do faturamento em man. líquida', icon: Wrench, color: impactoManutencao > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
         { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), sub: '% do faturamento em sinistro líquido', icon: ShieldAlert, color: impactoSinistro > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
@@ -4097,13 +4189,14 @@ export default function AnaliseContrato() {
     }
 
     return [
-      { label: 'Passagens Realizadas', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
-      { label: 'Ocorrências Efetivas', value: fmtNum(totalOcorrenciasEfetivas), sub: `${fmtNum(totalOcorrenciasManutencao)} ocorrências totais`, icon: Route, color: 'text-emerald-600' },
-      { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), sub: `${fmtNum(totalOcorrenciasCanceladas)} canceladas`, icon: AlertTriangle, color: pctCancelamentoOcorrencias > 0.35 ? 'text-rose-600' : 'text-amber-600' },
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
+      { label: 'Passagem Realizada', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
+      { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), sub: `${fmtNum(totalOcorrenciasCanceladas)} canceladas / ${fmtNum(totalOcorrenciasManutencao)} ocorrências totais`, icon: AlertTriangle, color: pctCancelamentoOcorrencias > 0.35 ? 'text-rose-600' : 'text-amber-600' },
+      { label: 'Tempo Médio de Locação', value: fmtNum(Math.round(tempoMedioLocacao)), sub: 'Idade média da frota filtrada', icon: Gauge, color: 'text-sky-600' },
+      { label: '% acima da Franquia', value: fmtPct(pctVeiculosAcimaFranquia), sub: 'Veículos com rodagem média acima da franquia', icon: AlertTriangle, color: 'text-amber-600' },
+      { label: 'KM Projetado no Fim', value: fmtNum(Math.round(projecaoMediaKmFimContrato)), sub: 'Média da projeção de KM do contrato', icon: Target, color: 'text-indigo-600' },
       { label: 'Casos para Atenção (Dif.)', value: fmtNum(veiculosCriticosDiff), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} na frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
       { label: 'Casos para Atenção (% Pass.)', value: fmtNum(veiculosCriticosPct), sub: `% Passagem > ${fmtPct(passagemPctAlertThreshold)}`, icon: AlertTriangle, color: 'text-amber-600' },
-      { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Itens destacados em vermelho na aba atual', icon: ShieldAlert, color: 'text-red-600' },
       { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
     ];
   }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
@@ -5095,12 +5188,13 @@ export default function AnaliseContrato() {
       cols.push({ key:'totalSinistro',   label:'Total Sin',     fmt:r=>fmtBRL(r.totalSinistro),   cls:r=>clrV(r.totalSinistro, false), align:'right', w:110, sortGetter: r=>r.totalSinistro });
       
       if (includeYearDetail) years.forEach(y => cols.push({ key:`reembSin_${y}`, label:`Reemb Sin ${y}`, fmt:r=>fmtBRLZero(r.years[y].reembSin), align:'right', w:120, sortGetter: r=>r.years[y].reembSin }));
-      cols.push({ key:'totalReembSin',   label:'Total Reemb Sin',fmt:r=>fmtBRLZero(r.totalReembSin),  align:'right', w:120, sortGetter: r=>r.totalReembSin });
+      cols.push({ key:'totalReembSin',   label:'Total Reemb Sin',fmt:r=>fmtBRLZero(r.totalReembSin),  cls:r=>Number(r.qtdSinistrosSemReembolso) > 0 ? 'text-amber-700 font-medium' : 'text-slate-700', align:'right', w:120, sortGetter: r=>r.totalReembSin });
       
       if (includeYearDetail) years.forEach(y => cols.push({ key:`difReembSin_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].sin - r.years[y].reembSin), cls:r=>clrV(r.years[y].sin - r.years[y].reembSin, false), align:'right', w:110, sortGetter: r=>r.years[y].sin - r.years[y].reembSin }));
       cols.push({ key:'custoLiqSin',     label:'Custo Líq Sin', fmt:r=>fmtBRLZero(r.custoLiqSin), cls:r=>clrV(r.custoLiqSin, false), align:'right', w:120, sortGetter: r=>r.custoLiqSin });
       cols.push({ key:'pctReembolsadoSin',label:'% Reemb Sin',  fmt:r=>fmtPct(r.pctReembolsadoSin), align:'right', w:95, sortGetter: r=>r.pctReembolsadoSin });
       cols.push({ key:'qtdSinistros',     label:'Qt. Sinistros', fmt:r=>fmtNum(r.qtdSinistros), align:'right', w:95, sortGetter: r=>r.qtdSinistros });
+      cols.push({ key:'qtdSinistrosSemReembolso', label:'OS sem Reembolso', fmt:r=>fmtNum(r.qtdSinistrosSemReembolso), cls:r=>Number(r.qtdSinistrosSemReembolso) > 0 ? 'text-amber-700 font-medium' : 'text-slate-700', align:'right', w:110, sortGetter: r=>r.qtdSinistrosSemReembolso });
       cols.push({ key:'gravidadeMediaSin',label:'Gravidade Média', fmt:r=>{
         const qtd = Number(r.qtdSinistros) || 0;
         return qtd > 0 ? fmtBRLZero((Number(r.totalSinistro) || 0) / qtd) : '—';
@@ -5214,85 +5308,91 @@ export default function AnaliseContrato() {
     if (!isMainDataTableVisible || allCols.length === 0) return {} as Record<string, number | null>;
 
     const totals: Record<string, number | null> = {};
-    const isSummableKey = (k: string) => {
-      if (!k) return false;
-      const kk = k.toLowerCase();
-      // don't sum percentages, labels, ids, text columns
-      if (kk.includes('indice') || kk.includes('vencimento') || kk.includes('contrato') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo') || kk.includes('idade') || kk.includes('odometro')) return false;
-      // rodagem/media and ideal/difference are not summable
-      if (kk.includes('rodagem') || kk.includes('ideal') || kk.includes('diferenca')) return false;
-      return true;
-    };
-
     for (const col of allCols) {
       const kk = String(col.key).toLowerCase();
-      // percentages: compute mean (display as percentage via fmtPct)
+
+      switch (kk) {
+        case 'pctpassagem':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.passagemTotal) || 0, r => Number(r.passagemIdeal) || 0, true);
+          continue;
+        case 'pctdifmanprevreal':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.custoManRealizado) || 0, r => Number(r.custoManPrevisto) || 0, true);
+          continue;
+        case 'pctdifcustomanliq':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.custoLiqMan) || 0, r => Number(r.custoManPrevisto) || 0, true);
+          continue;
+        case 'pctreembolsadoman':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalReembMan) || 0, r => Number(r.totalManutencao) || 0);
+          continue;
+        case 'pctreembolsadosin':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalReembSin) || 0, r => Number(r.totalSinistro) || 0);
+          continue;
+        case 'pctreembolsadomansin':
+          totals[col.key] = ratioOf(displayRows, r => (Number(r.totalReembMan) || 0) + (Number(r.totalReembSin) || 0), r => Number(r.totalManSin) || 0);
+          continue;
+        case 'pctmanfat':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalManutencao) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'pctcustoliqmanfat':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.custoLiqMan) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'pctsinfat':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalSinistro) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'pctcustoliqsinfat':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.custoLiqSin) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'pctmansinfat':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalManSin) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'pctrecuperacaoitemsos':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalItensOsReemb) || 0, r => Number(r.totalItensOsValor) || 0);
+          continue;
+        case 'pctitemsfat':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalItensOsValor) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'sinistralidadeoperacional':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalSinistro) || 0, r => Number(r.faturamentoTotal) || 0);
+          continue;
+        case 'sinistralidadereembolso':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalSinistro) || 0, r => Number(r.totalReembSin) || 0);
+          continue;
+        case 'indiceseveridadedano':
+          totals[col.key] = ratioOf(displayRows, r => Number(r.totalSinistro) || 0, r => Number(r.valorVeiculoFipe) || 0);
+          continue;
+      }
+
+      if (kk.includes('custokm') || kk === 'kmprecificado' || kk.includes('ticketmedio') || kk.includes('gravidademedia') || kk === 'rodagemmedia' || kk === 'franquiabanco' || kk === 'idadeemeses' || kk === 'kmatual' || kk === 'odometroretirada') {
+        totals[col.key] = avgOf(displayRows, r => {
+          if (col.sortGetter) {
+            try { return Number(col.sortGetter(r as any)) || 0; } catch (e) { return 0; }
+          }
+          return Number((r as any)[col.key]) || 0;
+        });
+        continue;
+      }
+
       if (kk.includes('pct')) {
-        let sum = 0;
-        let count = 0;
-        for (const r of displayRows) {
-          let v: any = undefined;
+        totals[col.key] = avgOf(displayRows, r => {
           if (col.sortGetter) {
-            try { v = col.sortGetter(r as any); } catch (e) { v = undefined; }
-          } else {
-            v = (r as any)[col.key];
+            try { return Number(col.sortGetter(r as any)) || 0; } catch (e) { return 0; }
           }
-          const n = Number(v);
-          if (isFinite(n)) { sum += n; count++; }
-        }
-        totals[col.key] = count > 0 ? sum / count : null;
+          return Number((r as any)[col.key]) || 0;
+        });
         continue;
       }
 
-      // idade (months): compute mean and round to integer (no decimal casas)
-      if (kk.includes('idade')) {
-        let sum = 0;
-        let count = 0;
-        for (const r of displayRows) {
-          const v = (r as any)[col.key];
-          const n = Number(v);
-          if (isFinite(n)) { sum += n; count++; }
-        }
-        totals[col.key] = count > 0 ? Math.round(sum / count) : null;
-        continue;
-      }
-
-      // average for mean columns (Custo/KM, Ticket Médio, Custo KM Líq)
-      if (kk.includes('custokm') || kk === 'ticketmedio') {
-        let sum = 0;
-        let count = 0;
-        for (const r of displayRows) {
-          let v: any = undefined;
-          if (col.sortGetter) {
-            try { v = col.sortGetter(r as any); } catch (e) { v = undefined; }
-          } else {
-            v = (r as any)[col.key];
-          }
-          const n = Number(v);
-          if (isFinite(n)) { sum += n; count++; }
-        }
-        totals[col.key] = count > 0 ? sum / count : null;
-        continue;
-      }
-
-      if (!isSummableKey(col.key)) {
+      if (kk.includes('indice') || kk.includes('classificacao') || kk.includes('vencimento') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo')) {
         totals[col.key] = null;
         continue;
       }
 
-      let sum = 0;
-      let found = false;
-      for (const r of displayRows) {
-        let v: any = undefined;
+      totals[col.key] = sumOf(displayRows, r => {
         if (col.sortGetter) {
-          try { v = col.sortGetter(r as any); } catch (e) { v = undefined; }
-        } else {
-          v = (r as any)[col.key];
+          try { return Number(col.sortGetter(r as any)) || 0; } catch (e) { return 0; }
         }
-        const n = Number(v);
-        if (isFinite(n)) { sum += n; found = true; }
-      }
-      totals[col.key] = found ? sum : null;
+        return Number((r as any)[col.key]) || 0;
+      });
     }
     return totals;
   }, [displayRows, allCols, isMainDataTableVisible]);
@@ -5547,7 +5647,12 @@ export default function AnaliseContrato() {
       let totalPassagemPrevista = 0;
       let veiculosCriticosDiff = 0;
       let veiculosCriticosPct = 0;
+      let veiculosCriticosTotal = 0;
       let somaRodagemMedia = 0;
+      let somaTempoLocacao = 0;
+      let somaKmEstimadoFimContrato = 0;
+      let veiculosComFranquia = 0;
+      let veiculosAcimaFranquia = 0;
       let totalOcorrenciasManutencao = 0;
       let totalOcorrenciasEfetivas = 0;
       let totalOcorrenciasCanceladas = 0;
@@ -5559,7 +5664,9 @@ export default function AnaliseContrato() {
       let totalCustoLiqMan = 0;
       let totalSinistro = 0;
       let totalReembSin = 0;
+      let totalSinistrosSemReembolso = 0;
       let totalCustoLiqSin = 0;
+      let totalSinistrosQtd = 0;
       let totalManSin = 0;
       let totalReembManSin = 0;
       let totalEventosManSin = 0;
@@ -5574,11 +5681,18 @@ export default function AnaliseContrato() {
         totalPassagens += Number(row.passagemTotal) || 0;
         totalPassagemPrevista += Number(row.passagemIdeal) || 0;
         somaRodagemMedia += Number(row.rodagemMedia) || 0;
+        somaTempoLocacao += Number(row.idadeEmMeses) || 0;
+        somaKmEstimadoFimContrato += Number(row.kmEstimadoFimContrato) || 0;
+        if ((Number(row.franquiaBanco) || 0) > 0) {
+          veiculosComFranquia++;
+          if ((Number(row.rodagemMedia) || 0) > (Number(row.franquiaBanco) || 0)) veiculosAcimaFranquia++;
+        }
         totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
         totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
         totalOcorrenciasCanceladas += Number(row.qtdOcorrenciasCanceladas) || 0;
         if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold) veiculosCriticosDiff++;
         if ((Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticosPct++;
+        if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticosTotal++;
 
         totalPrevisto += Number(row.custoManPrevisto) || 0;
         totalRealizado += Number(row.custoManRealizado) || 0;
@@ -5590,7 +5704,9 @@ export default function AnaliseContrato() {
 
         totalSinistro += Number(row.totalSinistro) || 0;
         totalReembSin += Number(row.totalReembSin) || 0;
+        totalSinistrosSemReembolso += Number(row.qtdSinistrosSemReembolso) || 0;
         totalCustoLiqSin += Number(row.custoLiqSin) || 0;
+        totalSinistrosQtd += Number(row.qtdSinistros) || 0;
 
         totalManSin += Number(row.totalManSin) || 0;
         totalReembManSin += (Number(row.totalReembMan) || 0) + (Number(row.totalReembSin) || 0);
@@ -5608,12 +5724,18 @@ export default function AnaliseContrato() {
       const pctCriticosDiff = totalVeiculos > 0 ? veiculosCriticosDiff / totalVeiculos : 0;
       const pctCriticosPct = totalVeiculos > 0 ? veiculosCriticosPct / totalVeiculos : 0;
       const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
+      const tempoMedioLocacao = totalVeiculos > 0 ? somaTempoLocacao / totalVeiculos : 0;
+      const projecaoMediaKmFimContrato = totalVeiculos > 0 ? somaKmEstimadoFimContrato / totalVeiculos : 0;
+      const pctVeiculosAcimaFranquia = veiculosComFranquia > 0 ? veiculosAcimaFranquia / veiculosComFranquia : 0;
       const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
       const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
       const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
       const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
+      const taxaOsSemReembolso = totalSinistrosQtd > 0 ? totalSinistrosSemReembolso / totalSinistrosQtd : 0;
       const custoLiqTotalManSin = totalManSin - totalReembManSin;
       const ticketMedioTotal = totalEventosManSin > 0 ? totalManSin / totalEventosManSin : 0;
+      const custoPorMesLocacao = totalVeiculos > 0 ? totalManutencao / Math.max(1, somaTempoLocacao) : 0;
+      const osPorVeiculo = totalVeiculos > 0 ? totalOcorrenciasEfetivas / totalVeiculos : 0;
       const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
       const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
       const impactoSinistro = faturamentoTotal > 0 ? totalCustoLiqSin / faturamentoTotal : 0;
@@ -5622,6 +5744,7 @@ export default function AnaliseContrato() {
       const ticketMedioOsItens = totalOsComItens > 0 ? totalItensOsValor / totalOsComItens : 0;
       const custoMedioItemOs = totalItensOsQtd > 0 ? totalItensOsValor / totalItensOsQtd : 0;
       const impactoItensOs = faturamentoTotal > 0 ? totalItensOsValor / faturamentoTotal : 0;
+      const coberturaCustos = (totalManutencao + totalSinistro) > 0 ? faturamentoTotal / (totalManutencao + totalSinistro) : 0;
 
       if (tab === 'previsto') {
         return [
@@ -5637,6 +5760,8 @@ export default function AnaliseContrato() {
           { label: 'Custo Bruto', value: fmtBRL(totalManutencao), cls: 'text-red-600' },
           { label: 'Reembolsado', value: fmtBRL(totalReembMan), cls: 'text-emerald-600' },
           { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), cls: 'text-red-600' },
+          { label: 'Custo/Mês Locação', value: fmtBRLZero(custoPorMesLocacao), cls: 'text-sky-600' },
+          { label: 'OS por Veículo', value: fmtNum(osPorVeiculo), cls: 'text-teal-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), cls: 'text-blue-600' },
           { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
@@ -5660,6 +5785,8 @@ export default function AnaliseContrato() {
           { label: 'Reemb. Sinistro', value: fmtBRL(totalReembSin), cls: 'text-emerald-600' },
           { label: 'Custo Líq. Sinistro', value: fmtBRLZero(totalCustoLiqSin), cls: 'text-red-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), cls: 'text-blue-600' },
+          { label: 'OS sem Reembolso', value: fmtNum(totalSinistrosSemReembolso), cls: totalSinistrosSemReembolso > 0 ? 'text-amber-600' : 'text-emerald-600' },
+          { label: 'Taxa OS sem Reembolso', value: fmtPct(taxaOsSemReembolso), cls: totalSinistrosSemReembolso > 0 ? 'text-amber-600' : 'text-emerald-600' },
           { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
@@ -5675,6 +5802,7 @@ export default function AnaliseContrato() {
       if (tab === 'faturamento') {
         return [
           { label: 'Faturamento', value: fmtBRL(faturamentoTotal), cls: 'text-teal-600' },
+          { label: 'Cobertura de Custos', value: fmtPct(coberturaCustos), cls: coberturaCustos >= 1 ? 'text-emerald-600' : 'text-rose-600' },
           { label: 'Margem Manutenção', value: fmtPct(margemManutencao), cls: margemManutencao < 0 ? 'text-red-600' : 'text-indigo-600' },
           { label: 'Impacto Man.', value: fmtPct(impactoManutencao), cls: impactoManutencao > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
           { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), cls: impactoSinistro > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
@@ -5682,13 +5810,14 @@ export default function AnaliseContrato() {
         ];
       }
       return [
-        { label: 'Passagens', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
-        { label: 'Ocorrências Efetivas', value: fmtNum(totalOcorrenciasEfetivas), cls: 'text-emerald-600' },
-        { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), cls: pctCancelamentoOcorrencias > 0.35 ? 'text-red-600' : 'text-amber-600' },
         { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
-        { label: 'Críticos (Dif.)', value: `${fmtNum(veiculosCriticosDiff)} (${fmtPct(pctCriticosDiff)})`, cls: 'text-red-600' },
-        { label: 'Críticos (% Pass.)', value: `${fmtNum(veiculosCriticosPct)} (${fmtPct(pctCriticosPct)})`, cls: 'text-amber-600' },
-        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+        { label: 'Passagem Realizada', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
+        { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), cls: pctCancelamentoOcorrencias > 0.35 ? 'text-red-600' : 'text-amber-600' },
+        { label: 'Tempo Médio de Locação', value: fmtNum(Math.round(tempoMedioLocacao)), cls: 'text-sky-600' },
+        { label: '% acima da Franquia', value: fmtPct(pctVeiculosAcimaFranquia), cls: 'text-amber-600' },
+        { label: 'KM Projetado no Fim', value: fmtNum(Math.round(projecaoMediaKmFimContrato)), cls: 'text-indigo-600' },
+        { label: 'Casos para Atenção (Dif.)', value: `${fmtNum(veiculosCriticosDiff)} (${fmtPct(pctCriticosDiff)})`, cls: 'text-red-600' },
+        { label: 'Casos para Atenção (% Pass.)', value: `${fmtNum(veiculosCriticosPct)} (${fmtPct(pctCriticosPct)})`, cls: 'text-amber-600' },
         { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), cls: 'text-blue-600' },
       ];
     };
@@ -5864,7 +5993,8 @@ export default function AnaliseContrato() {
     passagem: [
       'Passagem Total: soma das ocorrências de manutenção não canceladas por veículo.',
       'Passagem Prevista: KM atual dividido pelo divisor configurado.',
-      'Críticos: veículos com diferença positiva entre real e previsto.',
+      'Casos para Atenção (Dif.) e (% Pass.) mostram os alertas individuais; o total consolida a união dos dois critérios.',
+      'Tempo Médio de Locação: idade média da frota filtrada.',
       'Rodagem Média: média mensal baseada em KM atual e idade do veículo.'
     ],
     previsto: [
@@ -5874,6 +6004,8 @@ export default function AnaliseContrato() {
     ],
     manutencao: [
       'Mostra custos de manutenção, reembolsos e custo líquido.',
+      'Custo/Mês Locação = custo bruto de manutenção dividido pelos meses de locação.',
+      'OS por Veículo = média de ocorrências efetivas na frota filtrada.',
       'Custo/KM considera a quilometragem atual do veículo.'
     ],
     itensos: [
@@ -5887,6 +6019,7 @@ export default function AnaliseContrato() {
     sinistro: [
       'Consolida custos de sinistro e reembolsos (seguradora/terceiro).',
       'Custo Líquido Sinistro = Custo de Sinistro - Reembolso de Sinistro.',
+      'OS sem Reembolso = OS com custo acima de zero e reembolso igual a zero.',
       'Sinistralidade (Reembolso) = (Custo de Sinistro / Reembolso de Sinistro) x 100.',
       'Sinistralidade Operacional = (Custo de Sinistro / Faturamento Bruto) x 100.',
       'Índice de Frequência = (Qtd. de Sinistros / Qtd. de Veículos) x 100.',
@@ -5899,6 +6032,7 @@ export default function AnaliseContrato() {
     ],
     faturamento: [
       'Compara custos vs faturamento por veículo.',
+      'Cobertura de custos indica quanto o faturamento bruto cobre os custos totais.',
       'Percentuais mostram pressão de custo sobre a receita.'
     ],
     resumo: [
@@ -7796,23 +7930,7 @@ export default function AnaliseContrato() {
                         if (ci === 0) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">Totais</td>;
                         if (total == null) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">—</td>;
 
-                        const k = col.key.toLowerCase();
-                        const isCurrency = /valor|fat_|faturamento|custo|man_|sin_|reemb|total|vlr|valorlocacao|valorcompra/.test(k);
-                        const isPct = k.includes('pct');
-                        const isIdade = k.includes('idade');
-                        let formatted = '—';
-                        if (isPct) {
-                          formatted = fmtPct(total as number);
-                        } else if (isIdade) {
-                          formatted = fmtNum(Math.round((total as number) * 10) / 10);
-                        } else if (isCurrency) {
-                          formatted = (k.includes('reemb') || k.includes('liq')) ? fmtBRLZero(total as number) : fmtBRL(total as number);
-                        } else if (Number.isInteger(total)) {
-                          formatted = fmtNum(total as number);
-                        } else if (typeof total === 'number') {
-                          formatted = fmtNum(Math.round((total as number) * 100) / 100);
-                        }
-                        return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatted}</td>;
+                        return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatFooterValue(col, total)}</td>;
                       })}
                       <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>—</td>
                     </tr>
