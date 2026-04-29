@@ -2009,13 +2009,16 @@ export default function AnaliseContrato() {
     const map = new Map<string, number>();
     for (const regra of (rawRules as RegrasContratoRow[] | null ?? [])) {
       const r: any = regra as any;
-      const cto = String(r?.Contrato || '').trim();
-      const nomeRegra = String(r?.NomeRegra || r?.TipoPerfilContrato || r?.TipoPerfil || r?.NomePerfil || '').trim();
+      const cto = String(r?.Contrato || r?.contrato || r?.ContratoComercial || r?.contratoComercial || r?.IdContratoLocacao || r?.idContratoLocacao || '').trim();
+      const nomeRegra = String(r?.NomeRegra || r?.nomeRegra || r?.TipoPerfilContrato || r?.tipoPerfilContrato || r?.TipoPerfil || r?.tipoPerfil || r?.NomePerfil || r?.nomePerfil || '').trim();
       if (!cto || !nomeRegra) continue;
-      const grupo = String(r?.Grupo || r?.GrupoVeiculo || r?.Categoria || r?.CategoriaVeiculo || '').trim();
-      const valor = parseNum(r?.ConteudoRegra ?? r?.Valor ?? r?.Conteudo);
+      
+      const grupo = String(r?.Grupo || r?.grupo || r?.GrupoVeiculo || r?.grupoVeiculo || r?.Categoria || r?.categoria || r?.CategoriaVeiculo || r?.categoriaVeiculo || '').trim();
+      const valorRaw = r?.ConteudoRegra ?? r?.conteudoRegra ?? r?.Valor ?? r?.valor ?? r?.Conteudo ?? r?.conteudo ?? r?.Franquia ?? r?.franquia ?? r?.ValorFranquia ?? r?.valorFranquia;
+      const valor = parseNum(valorRaw);
+      
       // também grava variação sem prefixo tipo "A - " para cobrir cargas diferentes
-      const nomeNormalizado = nomeRegra.replace(/^[A-Z]\s*-\s*/i, '').trim();
+      const nomeNormalizado = nomeRegra.replace(/^[A-Z0-9]\s*-\s*/i, '').trim();
       if (grupo) {
         map.set(makeBancoRuleKey(cto, grupo, nomeRegra), valor);
         if (nomeNormalizado !== nomeRegra) map.set(makeBancoRuleKey(cto, grupo, nomeNormalizado), valor);
@@ -2027,7 +2030,16 @@ export default function AnaliseContrato() {
   }, [rawRules]);
 
   const lookupFranquiaBanco = (cto: string, grupo: string) => {
-    const regras = ['A - Franquia Km/mês', 'Franquia Km/mês'];
+    const regras = [
+      'A - Franquia KM/mês', 
+      'Franquia KM/mês', 
+      'A - Franquia Km/mês', 
+      'Franquia Km/mês',
+      'A - Franquia KM/mes',
+      'Franquia KM/mes',
+      'A - Franquia Km/mes',
+      'Franquia Km/mes'
+    ];
     for (const regra of regras) {
       const specific = bancoRegraLookup.get(makeBancoRuleKey(cto, grupo, regra));
       if (specific != null) return specific;
@@ -5135,7 +5147,7 @@ export default function AnaliseContrato() {
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'classificacaoOdometro', label:'Classificação Odômetro', fmt:r=>r.classificacaoOdometro, align:'left', w:145, sortGetter: r=>getOdometroBucketOrder(r.classificacaoOdometro) },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), cls: r=> (Number.isFinite(r.rodagemMedia) && Number.isFinite(r.franquiaBanco) && r.franquiaBanco>0 && r.rodagemMedia > r.franquiaBanco) ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:95, sortGetter: r=>r.rodagemMedia },
-        { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
+        { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>r.franquiaBanco === 0 ? '0' : fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
         { key:'dataInicial',     label:'Início Contrato', fmt:r=>r.dataInicial ? new Date(r.dataInicial).toLocaleDateString('pt-BR') : '—', align:'left', w:110, sortGetter: r=>r.dataInicial },
         { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
         { key:'mesesRestantesContrato',label:'Prazo Rest',fmt:r=>{
