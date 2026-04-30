@@ -191,6 +191,8 @@ interface VehicleRow {
   tipoContrato:string;
   isCortesia:boolean;
   franquiaBanco:number; custoKmManual:number | null;
+  valorCompra:number;
+  tempoLocacaoMeses:number;
   passagemTotal:number; passagemIdeal:number; diferencaPassagem:number; pctPassagem:number;
   qtdOcorrenciasTotal:number; qtdOcorrenciasEfetivas:number; qtdOcorrenciasCanceladas:number; pctOcorrenciasCanceladas:number;
   custoManPrevisto:number; custoManRealizado:number; difManPrevReal:number; pctDifManPrevReal:number; custoManLiquido:number; difCustoManLiq:number; pctDifCustoManLiq:number;
@@ -1173,7 +1175,7 @@ const formatFooterValue = (col: ColDef, total: number | null) => {
   return Number.isInteger(total) ? fmtNum(total) : fmtNum(Math.round(total * 100) / 100);
 };
 
-const getIdCols = (kmRedThreshold: number): ColDef[] => [
+const getIdCols = (kmRedThreshold: number, ageRedThreshold: number): ColDef[] => [
   { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:60, sortGetter: r=>r.cliente },
   { key:'contrato',    label:'CTO',          fmt:r=>r.contrato,    align:'left',  w:95, sortGetter: r=>r.contrato },
   { key:'placa',       label:'Placa',        fmt:r=>r.placa,       align:'left',  w:105, sortGetter: r=>r.placa },
@@ -1181,7 +1183,7 @@ const getIdCols = (kmRedThreshold: number): ColDef[] => [
   { key:'grupo',       label:'Grupo',        fmt:r=>r.grupo,       align:'left',  w:120, sortGetter: r=>r.grupo },
   { key:'odometroRetirada', label:'Odômetro Retirada', fmt:r=>r.odometroRetirada>0?r.odometroRetirada.toLocaleString('pt-BR'):'—', align:'right', w:120, sortGetter: r=>r.odometroRetirada },
   { key:'kmAtual',     label:'KM',           fmt:r=>r.kmAtual>0?r.kmAtual.toLocaleString('pt-BR'):'—', cls:r=>r.kmAtual > kmRedThreshold ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:80, sortGetter: r=>r.kmAtual },
-  { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtInt(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
+  { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtInt(r.idadeEmMeses), cls:r=>r.idadeEmMeses > ageRedThreshold ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
   { key:'kmPrecificado',label:'Km Precificado',fmt:r=>r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual), align:'right', w:110, sortGetter: r=>r.custoKmManual ?? -1 },
 ];
 
@@ -1629,6 +1631,8 @@ export default function AnaliseContrato() {
   const [passagemDiffAlertInput, setPassagemDiffAlertInput] = useState('3');
   const [passagemPctAlertThreshold, setPassagemPctAlertThreshold] = useState<number>(0.30);
   const [passagemPctAlertInput, setPassagemPctAlertInput] = useState('30');
+  const [ageRedThreshold, setAgeRedThreshold] = useState<number>(48);
+  const [ageRedThresholdInput, setAgeRedThresholdInput] = useState('48');
   const [fatPctAlertThreshold, setFatPctAlertThreshold] = useState<number>(0.10);
   const [fatPctAlertInput, setFatPctAlertInput] = useState('10');
   const [showRulesManager, setShowRulesManager] = useState(false);
@@ -1799,6 +1803,22 @@ export default function AnaliseContrato() {
 
     localStorage.setItem('analise_contrato_passagem_diff_alert_threshold', String(diff));
     localStorage.setItem('analise_contrato_passagem_pct_alert_threshold', String(pct));
+  };
+
+  useEffect(() => {
+    const raw = localStorage.getItem('analise_contrato_age_red_threshold');
+    if (raw == null) return;
+    const parsed = parseNum(raw);
+    if (!isFinite(parsed) || parsed < 0) return;
+    setAgeRedThreshold(parsed);
+    setAgeRedThresholdInput(String(Math.round(parsed)));
+  }, []);
+
+  const saveAgeRedThreshold = () => {
+    const threshold = Math.max(0, parseNum(ageRedThresholdInput));
+    setAgeRedThreshold(threshold);
+    setAgeRedThresholdInput(String(Math.round(threshold)));
+    localStorage.setItem('analise_contrato_age_red_threshold', String(threshold));
   };
 
   const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
@@ -2658,7 +2678,8 @@ export default function AnaliseContrato() {
         ? (dataFimUso.getTime() - dataInicioUso.getTime()) / (1000 * 60 * 60 * 24)
         : 0;
       const mesesUtilizacao = Math.max(0, diasUso / 30.4375);
-      const idadeEmMeses = monthsDiff(dataInicial);
+      const tempoLocacaoMeses = monthsDiff(dataInicial);
+      const idadeEmMeses = parseNum(frAny?.IdadeEmMeses || frAny?.idadeemmeses || 0) || monthsDiff(frAny?.DataCompra || frAny?.datacompra || dataInicial);
       const kmPercorridoNoContrato = Math.max(0, kmAtual - kmInicialContrato);
       const rodagemMedia = mesesUtilizacao > 0 ? Math.round(kmPercorridoNoContrato / mesesUtilizacao) : 0;
       const mesesRestantesContrato = monthsUntil(c?.DataFinal || '');
@@ -2713,9 +2734,9 @@ export default function AnaliseContrato() {
       const passagemIdealExibida = Math.round(passagemIdeal);
 
       const contratoBase = String(c?.ContratoComercial || cAny?.ContratoComercial || cAny?.Contrato || '').trim();
-      const manualCustoKm = lookupCustoKmManual(contratoBase, grupo);
+       const manualCustoKm = lookupCustoKmManual(contratoBase, grupo);
       const franquiaBanco = lookupFranquiaBanco(contratoBase, grupo);
-      const custoManPrevisto = manualCustoKm == null ? 0 : (franquiaBanco * manualCustoKm) * idadeEmMeses;
+      const custoManPrevisto = manualCustoKm == null ? 0 : (franquiaBanco * manualCustoKm) * tempoLocacaoMeses;
 
       let totalManutencao = 0, totalReembMan = 0;
       for (const bucket of mm.values()) { totalManutencao += bucket.cost; totalReembMan += bucket.reemb; }
@@ -2799,14 +2820,15 @@ export default function AnaliseContrato() {
       const pctCustoLiqSinFat = faturamentoTotal > 0 ? custoLiqSin / faturamentoTotal : 0;
       const pctManSinFat = faturamentoTotal > 0 ? totalManSin / faturamentoTotal : 0;
       const valorVeiculoFipe = parseNum(
-        frAny?.ValorFipeAtual ?? frAny?.valorfipeatual ??
         frAny?.ValorAtualFIPE ?? frAny?.valoratualfipe ??
+        frAny?.ValorFipeAtual ?? frAny?.valorfipeatual ??
         frAny?.ValorFipe ?? frAny?.valorfipe ??
         cAny?.ValorFipeAtual ?? cAny?.valorFipeAtual ??
         cAny?.ValorAtualFIPE ?? cAny?.valoratualfipe ??
         cAny?.ValorFipe ?? cAny?.valorfipe ??
         cAny?.currentFipe ?? cAny?.valor_fipe ?? 0
       );
+      const valorCompra = parseNum(frAny?.ValorCompra || frAny?.valorcompra || 0);
 
       const faturamentoPrevisto = calcularFaturamentoPrevisto(c, cAny, idadeEmMeses);
       const ultimoPreco = ultimoValorLocacao(idLocacaoKey);
@@ -2839,6 +2861,7 @@ export default function AnaliseContrato() {
         idComercial: String(cAny?.IdContratoComercial || cAny?.ContratoComercial || ''),
         idVeiculo: String(fr?.IdVeiculo || c?.IdVeiculoPrincipal || ''),
         placa: realPlaca, modelo, grupo, kmAtual, odometroRetirada: kmInicialContrato, indiceKm: kmLabel(kmAtual), classificacaoOdometro: classifyOdometro(kmAtual), idadeEmMeses, rodagemMedia,
+        tempoLocacaoMeses,
         dataInicial,
         vencimentoContrato: c?.DataFinal ? new Date(c.DataFinal).toLocaleDateString('pt-BR') : '—',
         mesesRestantesContrato,
@@ -2852,6 +2875,7 @@ export default function AnaliseContrato() {
         isCortesia: isCortesiaContrato,
         franquiaBanco,
         custoKmManual: manualCustoKm,
+        valorCompra,
         passagemTotal, passagemIdeal: passagemIdealExibida,
         qtdOcorrenciasTotal, qtdOcorrenciasEfetivas, qtdOcorrenciasCanceladas, pctOcorrenciasCanceladas,
         diferencaPassagem: Math.round(diferencaPassagem), pctPassagem,
@@ -3620,12 +3644,17 @@ export default function AnaliseContrato() {
           ...linkedOrders,
         ]);
 
+        const isCanceled = isCancelledStatus(statusText);
+        const motivoBase = String(mAny?.Motivo || mAny?.MotivoOcorrencia || '').trim();
+        const motivoCancel = isCanceled ? String(mAny?.MotivoCancelamento || mAny?.Justificativa || '').trim() : '';
+        const motivo = motivoCancel ? `${motivoBase} (Canc: ${motivoCancel})` : motivoBase;
+
         rows.push({
           osId,
           ocorrencia: getMaintenanceOccurrenceDisplay(mAny),
           date: date || null,
           tipo,
-          motivo: String(mAny?.Motivo || mAny?.MotivoOcorrencia || '').trim(),
+          motivo,
           situacao: statusText || '—',
           valorTotal,
           valorReembolsavel,
@@ -3679,12 +3708,16 @@ export default function AnaliseContrato() {
         ].map((v:any)=>String(v||'').trim()).filter(Boolean);
         const situacaoValue = situacaoCandidates.length ? situacaoCandidates[0] : '—';
 
+        const motivoBase = String(sAny?.Motivo || sAny?.TipoSinistro || sAny?.Descricao || '').trim();
+        const motivoCancel = isCancelled ? String(sAny?.MotivoCancelamento || sAny?.Justificativa || '').trim() : '';
+        const motivo = motivoCancel ? `${motivoBase} (Canc: ${motivoCancel})` : motivoBase;
+
         rows.push({
           osId,
           ocorrencia: getMaintenanceOccurrenceDisplay(sAny),
           date: date || null,
           tipo: 'Sinistro',
-          motivo: String(sAny?.Motivo || sAny?.TipoSinistro || sAny?.Descricao || '').trim(),
+          motivo,
           situacao: situacaoValue,
           valorTotal,
           valorReembolsavel,
@@ -3952,8 +3985,10 @@ export default function AnaliseContrato() {
 
   const kpis = useMemo(() => {
     const vSet = new Set<string>(), lSet = new Set<string>(), cSet = new Set<string>();
-    let fat=0, man=0, sin=0, ms=0, reemb=0;
+    let fat=0, man=0, sin=0, ms=0, reemb=0, totalCompra=0, totalFipe=0;
     for (const r of displayRows) {
+      totalCompra += r.valorCompra;
+      totalFipe += r.valorVeiculoFipe;
       if(r.placa) vSet.add(r.placa);
       if(r.idLocacao) lSet.add(r.idLocacao);
       if(r.idComercial) cSet.add(r.idComercial);
@@ -3963,7 +3998,10 @@ export default function AnaliseContrato() {
       nVeiculos: vSet.size,
       nLocacao: lSet.size,
       nComercial: cSet.size,
-      fat, man, sin, ms, reemb
+      fat, man, sin, ms, reemb,
+      totalCompra, totalFipe,
+      fipeCompraRatio: totalCompra > 0 ? totalFipe / totalCompra : 0,
+      pctReemb: ms > 0 ? reemb / ms : 0
     };
   }, [displayRows]);
 
@@ -4024,6 +4062,7 @@ export default function AnaliseContrato() {
     let totalOcorrenciasManutencao = 0;
     let totalOcorrenciasEfetivas = 0;
     let totalOcorrenciasCanceladas = 0;
+    let somaUtilizacaoFranquia = 0;
 
     let totalPrevisto = 0;
     let totalRealizado = 0;
@@ -4050,6 +4089,7 @@ export default function AnaliseContrato() {
     let totalItensOsQtd = 0;
     let totalOsComItens = 0;
     let totalItensTipos = 0;
+    let somaKmAtual = 0;
 
     for (const row of displayRows) {
       totalPassagens += Number(row.passagemTotal) || 0;
@@ -4057,9 +4097,11 @@ export default function AnaliseContrato() {
       somaRodagemMedia += Number(row.rodagemMedia) || 0;
       somaTempoLocacao += Number(row.idadeEmMeses) || 0;
       somaKmEstimadoFimContrato += Number(row.kmEstimadoFimContrato) || 0;
+      somaKmAtual += Number(row.kmAtual) || 0;
       if ((Number(row.franquiaBanco) || 0) > 0) {
         veiculosComFranquia++;
         if ((Number(row.rodagemMedia) || 0) > (Number(row.franquiaBanco) || 0)) veiculosAcimaFranquia++;
+        somaUtilizacaoFranquia += (Number(row.rodagemMedia) || 0) / (Number(row.franquiaBanco) || 0);
       }
       totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
       totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
@@ -4100,10 +4142,11 @@ export default function AnaliseContrato() {
     const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
     const tempoMedioLocacao = totalVeiculos > 0 ? somaTempoLocacao / totalVeiculos : 0;
     const projecaoMediaKmFimContrato = totalVeiculos > 0 ? somaKmEstimadoFimContrato / totalVeiculos : 0;
+    const kmMedioTotal = totalVeiculos > 0 ? somaKmAtual / totalVeiculos : 0;
     const pctVeiculosAcimaFranquia = veiculosComFranquia > 0 ? veiculosAcimaFranquia / veiculosComFranquia : 0;
     const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
+    const utilizacaoMediaFranquia = veiculosComFranquia > 0 ? somaUtilizacaoFranquia / veiculosComFranquia : 0;
 
-    const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
     const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
     const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
     const taxaOsSemReembolso = totalSinistrosQtd > 0 ? totalSinistrosSemReembolso / totalSinistrosQtd : 0;
@@ -4129,11 +4172,13 @@ export default function AnaliseContrato() {
 
     if (activeTab === 'previsto') {
       return [
-        { label: 'Total Previsto', value: fmtBRL(totalPrevisto), sub: 'Soma do custo previsto', icon: Target, color: 'text-amber-600' },
-        { label: 'Total Realizado', value: fmtBRLZero(totalRealizado), sub: 'Soma do custo realizado', icon: Wrench, color: 'text-rose-600' },
-        { label: 'Diferença (DIF)', value: fmtBRL(totalDifPrevReal), sub: 'Previsto - Realizado', icon: BarChart3, color: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-rose-600' },
-        { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), sub: '(Realizado / Previsto) - 1', icon: AlertTriangle, color: pctDesvioPrevReal > 0 ? 'text-rose-600' : 'text-emerald-600' },
-        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Diferença negativa ou desvio acima do previsto', icon: ShieldAlert, color: 'text-red-600' },
+        { label: 'Custo Previsto', value: fmtBRL(totalPrevisto), sub: 'Franquia * custo km * meses', icon: DollarSign, color: 'text-amber-600' },
+        { label: 'Custo Realizado (Bruto)', value: fmtBRLZero(totalRealizado), sub: 'Soma manutenção bruta', icon: Wrench, color: 'text-rose-600' },
+        { label: 'Custo Realizado (Líquido)', value: fmtBRLZero(totalCustoLiqMan), sub: 'Bruto - Reembolsos', icon: DollarSign, color: 'text-indigo-600' },
+        { label: 'Diferença (DIF Bruto)', value: fmtBRL(totalDifPrevReal), sub: 'Previsto - Realizado Bruto', icon: BarChart3, color: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-rose-600' },
+        { label: 'Diferença (DIF Líquido)', value: fmtBRL(totalPrevisto - totalCustoLiqMan), sub: 'Previsto - Realizado Líquido', icon: BarChart3, color: (totalPrevisto - totalCustoLiqMan) >= 0 ? 'text-emerald-600' : 'text-rose-600' },
+        { label: '% Desvio (Líquido)', value: fmtPct(totalPrevisto > 0 ? (totalCustoLiqMan / totalPrevisto) - 1 : 0), sub: 'Realizado Líq / Previsto', icon: Activity, color: (totalPrevisto > 0 ? (totalCustoLiqMan / totalPrevisto) - 1 : 0) > 0 ? 'text-rose-600' : 'text-emerald-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Diferença negativa ou desvio > 0', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -4202,16 +4247,17 @@ export default function AnaliseContrato() {
 
     return [
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
-      { label: 'Passagem Realizada', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
+      { label: 'Passagem Realizada', value: `${fmtNum(totalPassagens)} (${fmtPct(totalPassagemPrevista > 0 ? totalPassagens / totalPassagemPrevista : 0)})`, sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
       { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), sub: `${fmtNum(totalOcorrenciasCanceladas)} canceladas / ${fmtNum(totalOcorrenciasManutencao)} ocorrências totais`, icon: AlertTriangle, color: pctCancelamentoOcorrencias > 0.35 ? 'text-rose-600' : 'text-amber-600' },
-      { label: 'Tempo Médio de Locação', value: fmtNum(Math.round(tempoMedioLocacao)), sub: 'Idade média da frota filtrada', icon: Gauge, color: 'text-sky-600' },
-      { label: '% acima da Franquia', value: fmtPct(pctVeiculosAcimaFranquia), sub: 'Veículos com rodagem média acima da franquia', icon: AlertTriangle, color: 'text-amber-600' },
-      { label: 'KM Projetado no Fim', value: fmtNum(Math.round(projecaoMediaKmFimContrato)), sub: 'Média da projeção de KM do contrato', icon: Target, color: 'text-indigo-600' },
       { label: 'Casos para Atenção (Dif.)', value: fmtNum(veiculosCriticosDiff), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} na frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
       { label: 'Casos para Atenção (% Pass.)', value: fmtNum(veiculosCriticosPct), sub: `% Passagem > ${fmtPct(passagemPctAlertThreshold)}`, icon: AlertTriangle, color: 'text-amber-600' },
-      { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
+      { label: 'Idade média da frota', value: fmtNum(Math.round(tempoMedioLocacao)), sub: 'Média de idade dos veículos', icon: Gauge, color: 'text-sky-600' },
+      { label: 'KM média da frota', value: fmtNum(Math.round(kmMedioTotal)), sub: 'Média de odômetro atual', icon: Gauge, color: 'text-emerald-600' },
+      { label: 'KM Projetado no Fim', value: fmtNum(Math.round(projecaoMediaKmFimContrato)), sub: 'Média da projeção de KM do contrato', icon: Target, color: 'text-indigo-600' },
+      { label: 'Rodagem Média', value: `${fmtNum(Math.round(rodagemMedia))} km`, sub: `${fmtPct(pctVeiculosAcimaFranquia)} dos veículos acima da franquia`, icon: Gauge, color: 'text-blue-600' },
+      { label: 'Utilização da Franquia', value: fmtPct(utilizacaoMediaFranquia), sub: `Média sobre ${veiculosComFranquia} veículos com franquia`, icon: Target, color: utilizacaoMediaFranquia > 1 ? 'text-rose-600' : 'text-emerald-600' },
     ];
-  }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
+  }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold, ageRedThreshold]);
 
   const itensOsRankings = useMemo(() => {
     const empty = {
@@ -5162,6 +5208,7 @@ export default function AnaliseContrato() {
     } else if (tab === 'previsto') {
       cols.push(
         { key:'custoManPrevisto', label:'Previsto',      fmt:r=>fmtBRL(r.custoManPrevisto),   align:'right', w:120, sortGetter: r=>r.custoManPrevisto },
+        { key:'tempoLocacaoMeses',label:'Tempo Contrato (Meses)', fmt:r=>fmtInt(r.tempoLocacaoMeses), align:'right', w:110, sortGetter: r=>r.tempoLocacaoMeses },
         { key:'custoManRealizado',label:'Realizado',     fmt:r=>fmtBRLZero(r.custoManRealizado),  cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.custoManRealizado },
         { key:'difManPrevReal',   label:'DIF',           fmt:r=>fmtBRL(r.difManPrevReal),     cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.difManPrevReal },
         { key:'pctDifManPrevReal',label:'%DIF',          fmt:r=>fmtPct(r.pctDifManPrevReal),  cls:r=>clrP(r.pctDifManPrevReal, false), align:'right', w:80, sortGetter: r=>r.pctDifManPrevReal },
@@ -5286,7 +5333,7 @@ export default function AnaliseContrato() {
 
   const groupColWidth = 120;
   const clienteColWidth = groupColWidth;
-  const idCols = useMemo(() => getIdCols(kmRedThreshold), [kmRedThreshold]);
+  const idCols = useMemo(() => getIdCols(kmRedThreshold, ageRedThreshold), [kmRedThreshold, ageRedThreshold]);
 
   const allCols = useMemo(() => {
     if (!isMainDataTableVisible) return [];
@@ -5668,6 +5715,7 @@ export default function AnaliseContrato() {
       let totalOcorrenciasManutencao = 0;
       let totalOcorrenciasEfetivas = 0;
       let totalOcorrenciasCanceladas = 0;
+      let somaUtilizacaoFranquia = 0;
       let totalPrevisto = 0;
       let totalRealizado = 0;
       let totalDifPrevReal = 0;
@@ -5688,6 +5736,7 @@ export default function AnaliseContrato() {
       let totalItensOsQtd = 0;
       let totalOsComItens = 0;
       let totalItensTipos = 0;
+      let somaKmAtual = 0;
 
       for (const row of displayRows) {
         totalPassagens += Number(row.passagemTotal) || 0;
@@ -5695,9 +5744,11 @@ export default function AnaliseContrato() {
         somaRodagemMedia += Number(row.rodagemMedia) || 0;
         somaTempoLocacao += Number(row.idadeEmMeses) || 0;
         somaKmEstimadoFimContrato += Number(row.kmEstimadoFimContrato) || 0;
+        somaKmAtual += Number(row.kmAtual) || 0;
         if ((Number(row.franquiaBanco) || 0) > 0) {
           veiculosComFranquia++;
           if ((Number(row.rodagemMedia) || 0) > (Number(row.franquiaBanco) || 0)) veiculosAcimaFranquia++;
+          somaUtilizacaoFranquia += (Number(row.rodagemMedia) || 0) / (Number(row.franquiaBanco) || 0);
         }
         totalOcorrenciasManutencao += Number(row.qtdOcorrenciasTotal) || 0;
         totalOcorrenciasEfetivas += Number(row.qtdOcorrenciasEfetivas) || 0;
@@ -5738,9 +5789,10 @@ export default function AnaliseContrato() {
       const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
       const tempoMedioLocacao = totalVeiculos > 0 ? somaTempoLocacao / totalVeiculos : 0;
       const projecaoMediaKmFimContrato = totalVeiculos > 0 ? somaKmEstimadoFimContrato / totalVeiculos : 0;
+      const kmMedioTotal = totalVeiculos > 0 ? somaKmAtual / totalVeiculos : 0;
       const pctVeiculosAcimaFranquia = veiculosComFranquia > 0 ? veiculosAcimaFranquia / veiculosComFranquia : 0;
       const pctCancelamentoOcorrencias = totalOcorrenciasManutencao > 0 ? totalOcorrenciasCanceladas / totalOcorrenciasManutencao : 0;
-      const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
+      const utilizacaoMediaFranquia = veiculosComFranquia > 0 ? somaUtilizacaoFranquia / veiculosComFranquia : 0;
       const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
       const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
       const taxaOsSemReembolso = totalSinistrosQtd > 0 ? totalSinistrosSemReembolso / totalSinistrosQtd : 0;
@@ -5759,11 +5811,16 @@ export default function AnaliseContrato() {
       const coberturaCustos = (totalManutencao + totalSinistro) > 0 ? faturamentoTotal / (totalManutencao + totalSinistro) : 0;
 
       if (tab === 'previsto') {
+        const totalCustoLiqMan = totalManutencao - totalReembMan;
+        const difLiq = totalPrevisto - totalCustoLiqMan;
+        const desvioLiq = totalPrevisto > 0 ? (totalCustoLiqMan / totalPrevisto) - 1 : 0;
         return [
           { label: 'Previsto', value: fmtBRL(totalPrevisto), cls: 'text-amber-600' },
-          { label: 'Realizado', value: fmtBRLZero(totalRealizado), cls: 'text-red-600' },
-          { label: 'DIF', value: fmtBRL(totalDifPrevReal), cls: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-red-600' },
-          { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), cls: pctDesvioPrevReal > 0 ? 'text-red-600' : 'text-emerald-600' },
+          { label: 'Realizado (Bruto)', value: fmtBRLZero(totalRealizado), cls: 'text-red-600' },
+          { label: 'Realizado (Líquido)', value: fmtBRLZero(totalCustoLiqMan), cls: 'text-indigo-600' },
+          { label: 'DIF (Bruto)', value: fmtBRL(totalDifPrevReal), cls: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-red-600' },
+          { label: 'DIF (Líquido)', value: fmtBRL(difLiq), cls: difLiq >= 0 ? 'text-emerald-600' : 'text-red-600' },
+          { label: '% Desvio (Liq)', value: fmtPct(desvioLiq), cls: desvioLiq > 0 ? 'text-red-600' : 'text-emerald-600' },
           { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
@@ -5814,6 +5871,10 @@ export default function AnaliseContrato() {
       if (tab === 'faturamento') {
         return [
           { label: 'Faturamento', value: fmtBRL(faturamentoTotal), cls: 'text-teal-600' },
+          { label: 'Valor Compra', value: fmtBRL(kpis.totalCompra), cls: 'text-slate-600' },
+          { label: 'Valor FIPE', value: fmtBRL(kpis.totalFipe), cls: 'text-indigo-600' },
+          { label: 'FIPE / Compra', value: fmtPct(kpis.fipeCompraRatio), cls: kpis.fipeCompraRatio < 1 ? 'text-red-600' : 'text-emerald-600' },
+          { label: '% Reembolsável', value: fmtPct(kpis.pctReemb), cls: 'text-blue-600' },
           { label: 'Cobertura de Custos', value: fmtPct(coberturaCustos), cls: coberturaCustos >= 1 ? 'text-emerald-600' : 'text-rose-600' },
           { label: 'Margem Manutenção', value: fmtPct(margemManutencao), cls: margemManutencao < 0 ? 'text-red-600' : 'text-indigo-600' },
           { label: 'Impacto Man.', value: fmtPct(impactoManutencao), cls: impactoManutencao > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
@@ -5823,20 +5884,21 @@ export default function AnaliseContrato() {
       }
       return [
         { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
-        { label: 'Passagem Realizada', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
+        { label: 'Passagem Realizada', value: `${fmtNum(totalPassagens)} (${fmtPct(totalPassagemPrevista > 0 ? totalPassagens / totalPassagemPrevista : 0)})`, cls: 'text-blue-600' },
         { label: '% Cancelamento', value: fmtPct(pctCancelamentoOcorrencias), cls: pctCancelamentoOcorrencias > 0.35 ? 'text-red-600' : 'text-amber-600' },
-        { label: 'Tempo Médio de Locação', value: fmtNum(Math.round(tempoMedioLocacao)), cls: 'text-sky-600' },
-        { label: '% acima da Franquia', value: fmtPct(pctVeiculosAcimaFranquia), cls: 'text-amber-600' },
-        { label: 'KM Projetado no Fim', value: fmtNum(Math.round(projecaoMediaKmFimContrato)), cls: 'text-indigo-600' },
         { label: 'Casos para Atenção (Dif.)', value: `${fmtNum(veiculosCriticosDiff)} (${fmtPct(pctCriticosDiff)})`, cls: 'text-red-600' },
         { label: 'Casos para Atenção (% Pass.)', value: `${fmtNum(veiculosCriticosPct)} (${fmtPct(pctCriticosPct)})`, cls: 'text-amber-600' },
-        { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), cls: 'text-blue-600' },
+        { label: 'Idade média da frota', value: fmtNum(Math.round(tempoMedioLocacao)), cls: 'text-sky-600' },
+        { label: 'KM média da frota', value: fmtNum(Math.round(kmMedioTotal)), cls: 'text-emerald-600' },
+        { label: 'KM Projetado no Fim', value: fmtNum(Math.round(projecaoMediaKmFimContrato)), cls: 'text-indigo-600' },
+        { label: 'Rodagem Média', value: `${fmtNum(Math.round(rodagemMedia))} km (${fmtPct(pctVeiculosAcimaFranquia)} acima)`, cls: 'text-blue-600' },
+        { label: 'Utilização da Franquia', value: fmtPct(utilizacaoMediaFranquia), cls: utilizacaoMediaFranquia > 1 ? 'text-red-600' : 'text-emerald-600' },
       ];
     };
 
     const getPrintParametersForTab = (tab: TabKey) => {
       if (tab === 'passagem') {
-        return `Alerta de diferença: ${fmtNum(passagemDiffAlertThreshold)} passagens | Alerta percentual: ${fmtPct(passagemPctAlertThreshold)}`;
+        return `Alerta de diferença: ${fmtNum(passagemDiffAlertThreshold)} passagens | Alerta percentual: ${fmtPct(passagemPctAlertThreshold)} | Alerta KM: ${fmtNum(kmRedThreshold)} | Alerta Idade: ${ageRedThreshold} meses`;
       }
       if (tab === 'itensos') {
         return `Alerta de impacto itens/faturamento: ${fmtPct(fatPctAlertThreshold)}`;
@@ -6236,9 +6298,9 @@ export default function AnaliseContrato() {
 
               <div className="p-5 space-y-5 overflow-auto">
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
-                  <div className="text-sm font-semibold text-slate-900">Parâmetro de KM</div>
-                  <p className="text-xs text-slate-500 mt-0.5">KM acima do limite informado fica em vermelho na tabela e nas exportações.</p>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                  <div className="text-sm font-semibold text-slate-900">Parâmetros de Alerta (KM e Idade)</div>
+                  <p className="text-xs text-slate-500 mt-0.5">Valores acima dos limites informados ficam em vermelho na tabela e nas exportações.</p>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                     <div>
                       <label className="text-xs font-medium text-slate-500 mb-1 block">KM acima de</label>
                       <input
@@ -6250,16 +6312,34 @@ export default function AnaliseContrato() {
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
                       />
                     </div>
-                    <div className="text-xs text-slate-500">
-                      Atual: <span className="font-semibold text-slate-700">{Math.round(kmRedThreshold).toLocaleString('pt-BR')} km</span>
-                    </div>
                     <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Idade (meses) acima de</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={ageRedThresholdInput}
+                        onChange={(e)=>setAgeRedThresholdInput(e.target.value)}
+                        placeholder="48"
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Atuais: <span className="font-semibold text-slate-700">{Math.round(kmRedThreshold).toLocaleString('pt-BR')} km</span> / <span className="font-semibold text-slate-700">{Math.round(ageRedThreshold)} meses</span>
+                    </div>
+                    <div className="flex flex-col gap-2">
                       <button
                         type="button"
                         onClick={saveKmRedThreshold}
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 px-4 py-2 text-sm font-medium hover:bg-rose-100"
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 px-4 py-2 text-xs font-medium hover:bg-rose-100"
                       >
-                        Salvar parâmetro de KM
+                        Salvar KM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveAgeRedThreshold}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 px-4 py-2 text-xs font-medium hover:bg-rose-100"
+                      >
+                        Salvar Idade
                       </button>
                     </div>
                   </div>
@@ -6703,20 +6783,24 @@ export default function AnaliseContrato() {
         </div>
 
         {/* ── KPI Cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 gap-2">
           {[
             {label:'Veículos',        val:kpis.nVeiculos.toLocaleString('pt-BR'), col:'text-indigo-600'},
-            {label:'CTOs Locação',    val:kpis.nLocacao.toLocaleString('pt-BR'),  col:'text-blue-600'},
-            {label:'CTOs Comerciais', val:kpis.nComercial.toLocaleString('pt-BR'), col:'text-sky-600'},
+            {label:'CTOs Loc.',       val:kpis.nLocacao.toLocaleString('pt-BR'),  col:'text-blue-600'},
+            {label:'CTOs Com.',       val:kpis.nComercial.toLocaleString('pt-BR'), col:'text-sky-600'},
+            {label:'Vlr Compra',      val:fmtBRL(kpis.totalCompra),               col:'text-slate-600'},
+            {label:'Valor FIPE',      val:fmtBRL(kpis.totalFipe),                 col:'text-indigo-600'},
+            {label:'FIPE/Compra',     val:fmtPct(kpis.fipeCompraRatio),           col:kpis.fipeCompraRatio < 1 ? 'text-rose-600' : 'text-emerald-600'},
             {label:'Faturamento',     val:fmtBRL(kpis.fat),  col:'text-teal-600'},
             {label:'Manutenção',      val:fmtBRL(kpis.man),  col:'text-orange-600'},
             {label:'Sinistro',        val:fmtBRL(kpis.sin),  col:'text-red-600'},
             {label:'Man + Sin',       val:fmtBRL(kpis.ms),   col:'text-purple-600'},
             {label:'Total Reemb',     val:fmtBRL(kpis.reemb),col:'text-emerald-600'},
+            {label:'% Reemb.',        val:fmtPct(kpis.pctReemb), col:'text-blue-600'},
           ].map(k=>(
-            <div key={k.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="text-xs font-medium text-slate-500 mb-1">{k.label}</div>
-              <div className={`text-base font-bold ${k.col} truncate`} title={k.val}>{k.val}</div>
+            <div key={k.label} className="bg-white border border-slate-200 rounded-xl p-2 shadow-sm min-w-0">
+              <div className="text-[10px] font-medium text-slate-500 mb-0.5 truncate uppercase">{k.label}</div>
+              <div className={`text-sm font-bold ${k.col} truncate`} title={k.val}>{k.val}</div>
             </div>
           ))}
         </div>
@@ -7203,8 +7287,8 @@ export default function AnaliseContrato() {
                                 <td className={placaClass}>{r.placa || '—'}</td>
                                 <td className={grupoClass}>{r.grupo || '—'}</td>
                                 <td className={modeloClass}>{r.modelo || '—'}</td>
-                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtInt(r.idadeEmMeses)}</td>
-                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—'}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${r.idadeEmMeses > ageRedThreshold ? 'text-rose-600 font-semibold' : numClass}`}>{fmtInt(r.idadeEmMeses)}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${r.kmAtual > kmRedThreshold ? 'text-rose-600 font-semibold' : numClass}`}>{r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—'}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemTotal)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemIdeal)}</td>
                                 <td className={`px-3 py-2 text-right border-r border-slate-200 ${passagemDesvio ? desvioClass : numClass}`}>{fmtNominal(r.diferencaPassagem)}</td>

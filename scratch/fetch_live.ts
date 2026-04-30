@@ -13,8 +13,8 @@ async function fetchLive() {
     if (franquias.length > 0) {
       console.log(franquias.slice(0, 3));
     }
-  } catch (err) {
-    console.error('Error:', err.message);
+  } catch (err: any) {
+    console.error('Error:', err.message || err);
   }
 }
 
